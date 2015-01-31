@@ -248,61 +248,27 @@ int Accel::ReadXYZ(ACCEL_DATA* pAcData)
 	return 0;
 }
 
-// Compute the velocity in the x-direction
-int Accel::ComputeVx()
+// Compute velocity and position from sampled data
+// Use the Trapezoidal rule to approximate integrals:
+// Assume constant sample rate del_t
+// let f(t) = A(t) -> acceleration sample from time t
+// V(t) = intr(A(t)) ~= (del_t) * (A(t) - A(t-1))/2
+// X(t) = intr(V(t)) ~= (del_t) * (V(t) - V(t-1))/2
+// Position requires at least 3 samples to compute
+// Velocity required at least two samples to compute
+int Accel::ComputeVXoft(NUM_BUFFER *n, int* Value)
 {
-  return 0;
+	// Locals
+
+	// Check if we have two samples, we can compute velocity
 }
 
-// Compute the velocity in the y-direction
-int Accel::ComputeVy()
+// Process X and Y axes and load the output buffer
+int Accel::ProcessAccelData()
 {
-  return 0;
+	return 0;
 }
 
-// Compute the velocity in the z-direction
-int Accel::ComputeVz()
-{
-  return 0;
-}
-
-// Compute the displacement in the x-direction
-int Accel::ComputePx()
-{
-// Px = Vx*t + 1/2 Ax*t*t
-// Vx = Ax*t
-// integral(f(x)dx) =~ (b-a) * [(f(a) + f(b))/2]
-// Vx(t) = (period) * (Ax(t-1) + Ax(t))/2
-// Px(t) = (
-  return 0;
-}
-
-// Compute the displacement in the y-direction
-int Accel::ComputePy()
-{
-  return 0;
-}
-
-// Compute the displacement in the z-direction
-int Accel::ComputePz()
-{
-  return 0;
-}
-
-// Signal averaging
-int Accel::AvgFilter(int *Data)
-{
-//	Digital Filter
-
-//	y(t) = alpha * x(t) - (1-alpha) * y(t-1)
-// Where y(t) = filtered output
-// alpha = smoothing factor (0.5)
-// x(t) = raw sampled data
-// y(t-1) = previous value
-
-
-  return 0;
-}
 
 // Destructor
 Accel::~Accel()

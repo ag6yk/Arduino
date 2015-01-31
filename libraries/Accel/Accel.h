@@ -180,21 +180,27 @@ class Accel : public Sensor
         unsigned char 		_i2cAddress;
         struct ACCEL_DATA	_aBuff[32];
         int					_afifoCount;
+        NUM_BUFFER			_aXComputing;
+        NUM_BUFFER			_aYComputing;
+        int					_accelerationX;
+        int					_velocityX;
+        int					_positionX;
+        int					_accelerationY;
+        int					_velocityY;
+        int					_positionY;
 
     public:
         Accel();                            // Constructor
         ~Accel();                           // Destructor
         int begin();                        // Specific initialization
         boolean readID();                   // Read device ID (verify bus)
-        int available();				    // Returns fifo count or 0 for not ready
+        int available();				    // Returns fifo count or
+        									// 0 for not ready
         int ReadXYZ(ACCEL_DATA* pAcData);   // Block read of data
-        int ComputeVx();
-        int ComputeVy();
-        int ComputeVz();
-        int ComputePx();
-        int ComputePy();
-        int ComputePz();
-        int AvgFilter(int *Data);           // signal averaging
+        // Compute velocity and position from sampled data
+        int ComputeVXoft(NUM_BUFFER *n, int* Value);
+        									// from sampled data
+        int ProcessAccelData();				// Process X and Y axes
 };
 
 // Default instantiation
