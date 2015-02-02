@@ -50,6 +50,21 @@
 #define PING3       18
 #define ECHO3       19
 
+// SPI interface commands
+#define CMD_GET_NAV_DATA    0xA6
+#define CMD_ABORT_TRANSFER  0xB9
+#define CMD_PERFORM_POST    0xC5
+
+// SPI interface responses
+#define STS_NAV_DATA_NOT_READY  0x12
+#define STS_NAV_DATA_READY      0x36
+#define STS_ABORT_ACK           0x90
+#define STS_POST_PASS           0xA8
+#define STS_POST_FAIL_GYRO      0xF7
+#define STS_POST_FAIL_ACCEL     0xF8
+#define STS_POST_FAIL_COMPASS   0xF9
+#define STS_POST_FAIL_BARO      0xFA
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // DATA structures
@@ -61,7 +76,7 @@
 struct NAV_DATA
 {
     unsigned char  SensorStatus;    // Bit mapped for each sensor
-    char		   FrameCount;      // Packet count
+    char           FrameCount;      // Packet count
     char           Position_X_MSB;  // Most significant byte of X position data
     char           Position_X_LSB;  // Least significant byte of X position data
     char           Velocity_X_MSB;  // Most significant byte of X velocity data
@@ -106,15 +121,18 @@ Ultrasonic rangeSensor1 = Ultrasonic::Ultrasonic(Ping1, Echo1);
 Ultrasonic rangeSensor2 = Ultrasonic::Ultrasonic(Ping2, Echo2);
 Ultrasonic rangeSensor3 = Ultrasonic::Ultrasonic(Ping3, Echo3);
 
+// SPI interface values
 // NAV data buffers
-struct NAV_DATA	PingPong0;
+struct NAV_DATA PingPong0;
 struct NAV_DATA PingPong1;
-struct NAV_DATA* ReadPtr = &PingPong0;
-struct NAV_DATA* WritePtr = &PingPong1;
-
-volatile byte pos;
-volatile boolean process_it;
-char buf[100];
+// Read data directly into the buffer
+volatile struct NAV_DATA* ReadPtr;
+// Data is transferred over SPI in bytes
+volatile unsigned char* WritePtr;
+volatile boolean SPIDataReady;
+volatile boolean SPINewNavData;
+volatile int SPINavDataTransferState;
+volatile int SPITransferCount;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -129,9 +147,22 @@ char buf[100];
 // Initialization
 void setup(void)
 {
+  // Locals
+  int i;
+  unsigned char *pptr;
+  unsigned char *qptr;
   // Set up the debugger
   Serial.begin(115200);
-
+  
+  // Clear the NAV buffers
+  pptr = (unsigned char*)(&PingPong0);
+  qptr = (unsigned char*)(&PingPong1);
+  for(i=0; i < sizeof(NAV_DATA); i++)
+  {
+    *pptr++ = 0;
+    *qptr++ = 0;
+  }
+  
   // Initialize the I2C as a master
   Wire.begin();
   
@@ -142,11 +173,19 @@ void setup(void)
   pinMode(SCK, INPUT);
   
   // turn on SPI in slave mode
+  // MSB transmitted first
+  // SPI Mode 0
   SPCR |= _BV(SPE);
   
   // get ready for the SPI interrupt
-  pos = 0;
-  process_it = false;
+  // Start filling ping pong 0
+  SPIDataReady = false;
+  SPINewNavData = false;
+  SPINavDataTransferState = 0;
+  SPITransferCount = 0;
+  // Initialize the ping pong buffer
+  ReadPtr = &PingPong0;
+  WritePtr = (unsigned char*)&PingPong1;
   
   // Configure the IMU
   
@@ -170,19 +209,73 @@ void setup(void)
 // SPI interrupt service routine
 ISR(SPI_STC_vect)
 {
-	// Locals
-	
-	// grab a byte from the SPI Data register
-	byte c = SPDR;
-	
-	// add to buffer if room
-	if(pos < sizeof buf)
-	{
-		buf[pos++] = c;
-		
-		// process data
-		process_it = true;
-	}
+  // Locals
+  byte spiData;
+
+  // First check for any data from
+  // the master
+  spiData = SPDR;
+  
+  switch(SPINavDataTransferState)
+  {
+    // Waiting for new command
+    case 0:
+    {
+      if(SPDR == CMD_GET_NAV_DATA)
+      {
+        // See if a new buffer is ready
+        // If not inform the master not yet
+        if(SPINewNavData == false)
+        {
+          SPDR = STS_NAV_DATA_NOT_READY;
+        }
+        else
+        // New nav data ready to go
+        {
+          SPDR = STS_NAV_DATA_READY;
+          SPINavDataTransferState = 1;
+          SPITransferCount = 0;
+        }
+      }
+      // ignore everything else
+      break;
+    }
+    
+    // Writing nav data out to master
+    case 1:
+    {
+      // Make sure master is not killing transaction
+      if(SPDR == CMD_ABORT_TRANSFER)
+      {
+        // Force completion
+        SPDR = STS_ABORT_ACK;
+        SPITransferCount = sizeof(NAV_DATA);
+      }
+      else
+      {
+        // Write the next byte to the bus
+        SPDR = *WritePtr++;
+        SPITransferCount++;
+      }
+      // See if buffer complete
+      if(SPITransferCount >= sizeof(NAV_DATA))
+      {
+        // Transfer complete
+        SPINavDataTransferState = 0;
+        SPINewNavData = false;
+        // Swap the ping pong
+        if(WritePtr == (unsigned char*)&PingPong0)
+        {
+          WritePtr = (unsigned char*)&PingPong1;
+        }
+        else
+        {
+          WritePtr = (unsigned char*)&PingPong0;
+        }
+      }
+      break;
+    }
+  }
 }
 
 // Executive loop
@@ -190,19 +283,31 @@ void loop(void)
 {
   // Locals
   
-  // Check for any requests from the SPI
-  if(process_it)
-  {
-  	// send the correct packets
-  	process_it = false;
-  }
-  // If data available send packet
+  // SPI transactions handled in interrupt
+ 
   // Process IMU
+  
+  // Check if new Gyro data is available
+  
+  // If so, read and process the Gyro data
+  
+  // Check if new Accelerometer data is available
+  
+  // If so, read and process the accelerometer data
+  
+  // Check if new Compass data is available
+  
+  // If so, read and process the compass data
+  
+  // FUTURE: Check if new pressure or temperature data is available
+ 
   // Process Range sensors
-  WritePtr->Range_0 = rangeSensor0.ReadRange();
-  WritePtr->Range_1 = rangeSensor1.ReadRange();
-  WritePtr->Range_2 = rangeSensor2.ReadRange();
-  WritePtr->Range_3 = rangeSensor3.ReadRange();
+  ReadPtr->Range_0 = rangeSensor0.ReadRange();
+  ReadPtr->Range_1 = rangeSensor1.ReadRange();
+  ReadPtr->Range_2 = rangeSensor2.ReadRange();
+  ReadPtr->Range_3 = rangeSensor3.ReadRange();
+  
+  // And do it again, and again, ...
 }
 
 // End if LibertySensorIF.ino

@@ -1,0 +1,12 @@
+*.cpp~
+*.h~
+./libraries/Accel/*.cpp~
+./libraries/Accel/*.h~
+./libraries/Baro/*.cpp~
+./libraries/Baro/*.h~
+./libraries/Compass/*.cpp~
+./libraries/Compass/*.h~
+./libraries/Gyro/*.cpp~
+./libraries/Gyro/*.h~
+.cproject
+.project
