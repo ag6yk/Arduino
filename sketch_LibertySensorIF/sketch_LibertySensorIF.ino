@@ -40,15 +40,30 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+//////////////////////////
+// Arduino Pin definitions
+//////////////////////////
+
+
+// Pins 10-13 used as SPI interface
+// Pins 0-1 uses as serial debug monitor
+
 // Define the Pins used for the range sensor data
-#define PING0       4
-#define ECHO0       5
-#define PING1       6
-#define ECHO1       7
-#define PING2       8
-#define ECHO2       9
-#define PING3       18
-#define ECHO3       19
+#define PING0       2
+#define ECHO0       3
+#define PING1       4
+#define ECHO1       5
+#define PING2       6
+#define ECHO2       7
+#define PING3       8
+#define ECHO3       9
+
+// Define the Pins used to interface to the IMU
+// SDA and SCL already defined for A4 and A5 respectively
+#define A_INT       A0
+#define T_INT       A1
+#define P_EOC       A2
+#define M_DRDY      A3
 
 // SPI interface commands
 #define CMD_GET_NAV_DATA    0xA6
@@ -105,17 +120,22 @@ struct NAV_DATA
 // GLOBAL DECLARATIONS
 ///////////////////////////////////////////////////////////////////////////////
 
-// Pin assignments
-const int	Ping0 = PING0;
-const int	Echo0 = ECHO0;
-const int	Ping1 = PING1;
-const int	Echo1 = ECHO1;
-const int	Ping2 = PING2;
-const int	Echo2 = ECHO2;
-const int	Ping3 = PING3;
-const int	Echo3 = ECHO3;
+// C++ Pin assignments
+const int    Ping0 = PING0;          // Range sensor 0 (front)
+const int    Echo0 = ECHO0;
+const int    Ping1 = PING1;          // Range sensor 1 (right)
+const int    Echo1 = ECHO1;
+const int    Ping2 = PING2;          // Range sensor 2 (back)
+const int    Echo2 = ECHO2;
+const int    Ping3 = PING3;          // Range sensor 3 (left)
+const int    Echo3 = ECHO3;
 
-// Instantiate four range sensors
+const int   P_eoc   = P_EOC;        // Barometer end-of-conversion
+const int   M_drdy  = M_DRDY;       // Compass data ready
+const int   T_int   = T_INT;        // Gyro interrupt output
+const int   A_int   = A_INT;        // Accelerometer interrupt output
+
+// Instantiate four range sensor objects
 Ultrasonic rangeSensor0 = Ultrasonic::Ultrasonic(Ping0, Echo0);
 Ultrasonic rangeSensor1 = Ultrasonic::Ultrasonic(Ping1, Echo1);
 Ultrasonic rangeSensor2 = Ultrasonic::Ultrasonic(Ping2, Echo2);
@@ -123,16 +143,32 @@ Ultrasonic rangeSensor3 = Ultrasonic::Ultrasonic(Ping3, Echo3);
 
 // SPI interface values
 // NAV data buffers
+// Data will be double-buffered ("ping-pong") with the
+// intent that the SPI interrupt service routine will be 
+// reading data from one buffer while the other can be filled
+// in the main processing loop
+// Read pointer is used by the main loop
+// Write pointer is used by the interrupt service routine
 struct NAV_DATA PingPong0;
 struct NAV_DATA PingPong1;
-// Read data directly into the buffer
-volatile struct NAV_DATA* ReadPtr;
-// Data is transferred over SPI in bytes
-volatile unsigned char* WritePtr;
-volatile boolean SPIDataReady;
-volatile boolean SPINewNavData;
-volatile int SPINavDataTransferState;
-volatile int SPITransferCount;
+struct NAV_DATA* ReadPtr = &PingPong0;
+struct NAV_DATA* WritePtr = &PingPong1;
+
+// SPI transfer control variables
+// SPI transfer state machine
+// State 0: Idle
+// State 1: Command Acknowledge
+// State 2: Transfer data
+volatile int    SPITransferState;       // FSM state variable
+volatile int    SPIDataReady;           // Flag to SPI FSM from main
+volatile int    SPIDataWritten;         // Flag from SPI FSM to main
+
+// Device status
+int             GyroStatus;             // 0 = device OK
+int             AccelStatus;
+int             CompassStatus;
+int             BaroStatus;
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -151,8 +187,11 @@ void setup(void)
   int i;
   unsigned char *pptr;
   unsigned char *qptr;
-  // Set up the debugger
-  Serial.begin(115200);
+  
+    // Set up the debugger
+    Serial.begin(9600);
+    Serial.println("Setup Debug Info...");
+    delay(500);
   
   // Clear the NAV buffers
   pptr = (unsigned char*)(&PingPong0);
@@ -162,9 +201,15 @@ void setup(void)
     *pptr++ = 0;
     *qptr++ = 0;
   }
-  
+
   // Initialize the I2C as a master
   Wire.begin();
+  
+  // Pin assignments
+  pinMode(P_eoc, INPUT);
+  pinMode(M_drdy, INPUT);
+  pinMode(T_int, INPUT);
+  pinMode(A_int, INPUT);
   
   // Initialize the SPI as a slave
   pinMode(MISO, OUTPUT);
@@ -188,24 +233,36 @@ void setup(void)
   WritePtr = (unsigned char*)&PingPong1;
   
   // Configure the IMU
+  Serial.println("SPI configured");
+ 
+   // Configure the gyroscope
+//  GyroStatus = imuGyro.begin();
+//  Serial.print("GyroStatus = ");
+//  Serial.println(GyroStatus, DEC);
+  delay(500);
   
-  // Configure the gyroscope
-  imuGyro.begin();
   
   // Configure the accelerometer
-  imuAccel.begin();
+  AccelStatus = imuAccel.begin();
+  Serial.print("AccelStatus = ");
+  Serial.println(AccelStatus, DEC);
  
   // Configure the compass
-  imuCompass.begin();
- 
+//  CompassStatus = imuCompass.begin();
+//  Serial.print("CompassStatus = ");
+//  Serial.println(CompassStatus, DEC);
+  
   // Configure the barometer
-  imuBarometer.begin();
+//  BaroStatus = imuBarometer.begin();
+//  Serial.print("BaroStatus = ");
+//  Serial.println(BaroStatus, DEC);
   
   // Enable the SPI interrupt
-  SPI.attachInterrupt();
+//  SPI.attachInterrupt();
  
 }
 
+#if 0
 // SPI interrupt service routine
 ISR(SPI_STC_vect)
 {
@@ -277,11 +334,16 @@ ISR(SPI_STC_vect)
     }
   }
 }
+#endif 
 
 // Executive loop
 void loop(void)
 {
   // Locals
+  Serial.println("I'm Loopy!");
+  delay(5000);
+  
+#if 0
   
   // SPI transactions handled in interrupt
  
