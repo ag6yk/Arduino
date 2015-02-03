@@ -80,6 +80,12 @@
 #define STS_POST_FAIL_COMPASS   0xF9
 #define STS_POST_FAIL_BARO      0xFA
 
+// SPI reader and write state values
+#define SPI_DATA_IDLE           0x00
+#define SPI_DATA_BUSY0          0x01
+#define SPI_DATA_BUSY1          0x02
+#define SPI_DATA_LOCK           0x03
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // DATA structures
@@ -90,7 +96,6 @@
 // SPI payload
 struct NAV_DATA
 {
-    unsigned char  SensorStatus;    // Bit mapped for each sensor
     char           FrameCount;      // Packet count
     char           Position_X_MSB;  // Most significant byte of X position data
     char           Position_X_LSB;  // Least significant byte of X position data
@@ -159,9 +164,11 @@ struct NAV_DATA* WritePtr = &PingPong1;
 // State 0: Idle
 // State 1: Command Acknowledge
 // State 2: Transfer data
-volatile int    SPITransferState;       // FSM state variable
-volatile int    SPIDataReady;           // Flag to SPI FSM from main
-volatile int    SPIDataWritten;         // Flag from SPI FSM to main
+volatile int        SPITransferCount;       // Data counter
+volatile int        SPIDataReadState;       // Data reader state variable
+volatile int        SPIDataWriteState;      // Data writer state variable
+volatile boolean    PingPong0Ready;         // true = ready to transfer
+volatile boolean    PingPong1Ready;
 
 // Device status
 int             GyroStatus;             // 0 = device OK
@@ -183,69 +190,78 @@ int             BaroStatus;
 // Initialization
 void setup(void)
 {
-  // Locals
-  int i;
-  unsigned char *pptr;
-  unsigned char *qptr;
+    // Locals
+    int i;
+    unsigned char *pptr;
+    unsigned char *qptr;
   
     // Set up the debugger
     Serial.begin(9600);
     Serial.println("Setup Debug Info...");
     delay(500);
   
-  // Clear the NAV buffers
-  pptr = (unsigned char*)(&PingPong0);
-  qptr = (unsigned char*)(&PingPong1);
-  for(i=0; i < sizeof(NAV_DATA); i++)
-  {
-    *pptr++ = 0;
-    *qptr++ = 0;
-  }
+    // Clear the NAV buffers
+    pptr = (unsigned char*)(&PingPong0);
+    qptr = (unsigned char*)(&PingPong1);
+    for(i=0; i < sizeof(NAV_DATA); i++)
+    {
+        *pptr++ = 0;
+        *qptr++ = 0;
+    }
 
-  // Initialize the I2C as a master
-  Wire.begin();
+    // Initialize the I2C as a master
+    Wire.begin();
   
-  // Pin assignments
-  pinMode(P_eoc, INPUT);
-  pinMode(M_drdy, INPUT);
-  pinMode(T_int, INPUT);
-  pinMode(A_int, INPUT);
+    // Pin assignments
+    pinMode(P_eoc, INPUT);
+    pinMode(M_drdy, INPUT);
+    pinMode(T_int, INPUT);
+    pinMode(A_int, INPUT);
   
-  // Initialize the SPI as a slave
-  pinMode(MISO, OUTPUT);
-  pinMode(MOSI, INPUT);
-  pinMode(SS, INPUT);
-  pinMode(SCK, INPUT);
+    // Initialize the SPI as a slave
+    pinMode(MISO, OUTPUT);
+    pinMode(MOSI, INPUT);
+    pinMode(SS, INPUT);
+    pinMode(SCK, INPUT);
   
-  // turn on SPI in slave mode
-  // MSB transmitted first
-  // SPI Mode 0
-  SPCR |= _BV(SPE);
+    // turn on SPI in slave mode
+    // MSB transmitted first
+    // SPI Mode 0
+    SPCR |= _BV(SPE);
   
-  // get ready for the SPI interrupt
-  // Start filling ping pong 0
-  SPIDataReady = false;
-  SPINewNavData = false;
-  SPINavDataTransferState = 0;
-  SPITransferCount = 0;
-  // Initialize the ping pong buffer
-  ReadPtr = &PingPong0;
-  WritePtr = (unsigned char*)&PingPong1;
+    // get ready for the SPI interrupt
+    // Reset all state machines
+    SPITransferState = SPI_DATA_IDLE;
+    SPIDataReadState = SPI_DATA_IDLE;
+    SPIDataWriteState = SPI_DATA_LOCK;
+    SPITransferCount = 0;
+    
+    // Initialize read and write pointers
+    // Start with buffer 0
+    // Data reader will be active
+    // Data writer will be held until first fill complete
+
+    // Initialize the ping pong buffer
+    ReadPtr = (unsigned char*)&PingPong0;
+    WritePtr = (unsigned char*)&PingPong0;
+    PingPong0Ready = false;
+    PingPong1Ready = false;
+    Serial.println("SPI configured");
+    delay(500);
   
-  // Configure the IMU
-  Serial.println("SPI configured");
+    // Configure the IMU
  
-   // Configure the gyroscope
+    // Configure the gyroscope
 //  GyroStatus = imuGyro.begin();
 //  Serial.print("GyroStatus = ");
 //  Serial.println(GyroStatus, DEC);
-  delay(500);
+//  delay(500);
   
   
   // Configure the accelerometer
-  AccelStatus = imuAccel.begin();
-  Serial.print("AccelStatus = ");
-  Serial.println(AccelStatus, DEC);
+//  AccelStatus = imuAccel.begin();
+//  Serial.print("AccelStatus = ");
+//  Serial.println(AccelStatus, DEC);
  
   // Configure the compass
 //  CompassStatus = imuCompass.begin();
@@ -266,73 +282,127 @@ void setup(void)
 // SPI interrupt service routine
 ISR(SPI_STC_vect)
 {
-  // Locals
-  byte spiData;
+    // Locals
+    byte spiData;
 
-  // First check for any data from
-  // the master
-  spiData = SPDR;
+    // First check for any data from the master
+    spiData = SPDR;
   
-  switch(SPINavDataTransferState)
-  {
-    // Waiting for new command
-    case 0:
+    switch(SPINavDataWriteState)
     {
-      if(SPDR == CMD_GET_NAV_DATA)
-      {
-        // See if a new buffer is ready
-        // If not inform the master not yet
-        if(SPINewNavData == false)
+        // Waiting for new command
+        case SPI_DATA_IDLE:
         {
-          SPDR = STS_NAV_DATA_NOT_READY;
+            if(SPDR == CMD_GET_NAV_DATA)
+            {
+                // See if buffer 0 is free and ready to be transferred
+                // See if the buffer is ready to be transferred
+                if((WritePtr == (unsigned char*)&PingPong0) &&
+                   (SPIDataReadState != SPI_DATA_BUSY0) &&
+                   (PingPong0Ready)
+                  )
+                {
+                    SPDR = STS_NAV_DATA_READY;
+                    SPIDataWriteState = SPI_DATA_BUSY0;
+                    SPITransferCount = 0;
+                }
+                else if((WritePtr == (unsigned char *)&PingPong1) &&
+                        (SPIDataReadState != SPI_DATA_BUSY1) &&
+                        (PingPong1Ready)
+                       )
+                {
+                    SPDR = STS_NAV_DATA_READY;
+                    SPIDataWriteState = SPI_DATA_BUSY1;
+                    SPITransferCount = 0;
+                }
+                else
+                {
+                    // Data is not ready to transfer
+                    SPDR = STS_NAV_DATA_NOT_READY;
+                }
+            }
+            // Abort transfer
+            else if(SPDR == CMD_ABORT_TRANSFER)
+            {
+                SPDR = STS_ABORT_ACK;
+            }
+            // perform self-test 
+            else if(SPDR == CMD_PERFORM_POST)
+            {
+                // Stub for now
+                SPDR = STS_POST_PASS;
+            }
+            break;
         }
-        else
-        // New nav data ready to go
-        {
-          SPDR = STS_NAV_DATA_READY;
-          SPINavDataTransferState = 1;
-          SPITransferCount = 0;
-        }
-      }
-      // ignore everything else
-      break;
-    }
+                    
     
-    // Writing nav data out to master
-    case 1:
-    {
-      // Make sure master is not killing transaction
-      if(SPDR == CMD_ABORT_TRANSFER)
-      {
-        // Force completion
-        SPDR = STS_ABORT_ACK;
-        SPITransferCount = sizeof(NAV_DATA);
-      }
-      else
-      {
-        // Write the next byte to the bus
-        SPDR = *WritePtr++;
-        SPITransferCount++;
-      }
-      // See if buffer complete
-      if(SPITransferCount >= sizeof(NAV_DATA))
-      {
-        // Transfer complete
-        SPINavDataTransferState = 0;
-        SPINewNavData = false;
-        // Swap the ping pong
-        if(WritePtr == (unsigned char*)&PingPong0)
+        // Writing Buffer 0 to master
+        case SPI_DATA_BUSY0:
         {
-          WritePtr = (unsigned char*)&PingPong1;
+            // Check for abort message
+            if(SPDR == CMD_ABORT_TRANSFER)
+            {
+                // Force completion
+                SPDR = STS_ABORT_ACK;
+                SPITransferCount = sizeof(NAV_DATA);
+                SPIDataWriteState = SPI_DATA_IDLE;
+                PingPong0Ready = false;
+            }
+            else
+            {
+                // Write the next byte of the buffer to the bus
+                SPDR = *WritePtr++;
+                SPITransferCount++;
+            }
+            // See if buffer complete
+            if(SPITransferCount >= sizeof(NAV_DATA))
+            {
+                // Transfer complete
+                SPINavDataWriteState = SPI_DATA_IDLE;
+                SPITransferCount = 0;
+                PingPong0Ready = false;
+                // Swap the write buffer to the next one
+                WritePtr = (unsigned char*)&PingPong1;
+            }
+            break;
         }
-        else
+        
+        // Writing Buffer 1 to master
+        case SPI_DATA_BUSY0:
         {
-          WritePtr = (unsigned char*)&PingPong0;
+            // Check for abort message
+            if(SPDR == CMD_ABORT_TRANSFER)
+            {
+                // Force completion
+                SPDR = STS_ABORT_ACK;
+                SPITransferCount = sizeof(NAV_DATA);
+                SPIDataWriteState = SPI_DATA_IDLE;
+                PingPong1Ready = false;
+            }
+            else
+            {
+                // Write the next byte of the buffer to the bus
+                SPDR = *WritePtr++;
+                SPITransferCount++;
+            }
+            // See if buffer complete
+            if(SPITransferCount >= sizeof(NAV_DATA))
+            {
+                // Transfer complete
+                SPINavDataWriteState = SPI_DATA_IDLE;
+                SPITransferCount = 0;
+                PingPong1Ready = false;
+                // Swap the write buffer to the next one
+                WritePtr = (unsigned char*)&PingPong0;
+            }
+            break;
         }
-      }
-      break;
-    }
-  }
+        
+        default:
+        {
+            // ignore
+        }
+    }// end switch
 }
 #endif 
 
