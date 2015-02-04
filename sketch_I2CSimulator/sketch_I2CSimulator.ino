@@ -98,7 +98,7 @@ const struct ACCEL_DATA accelSimData[32] =
     {50, 50, 0, 0, 0, 0},
     {0xFF, 45, 1, 1, 0, 0},
     {0xFF, 85, 2, 2, 0, 0},
-    {0xFF, FE, 10, 10, 0, 0},
+    {0xFF, 0xFE, 10, 10, 0, 0},
     {0, 0, 20, 20, 0, 0},
     {0, 0, 30, 30, 0, 0},
     {0, 0, 10, 10, 0, 0}, 
@@ -219,7 +219,7 @@ void setup(void)
         break;
       }
       
-      default
+      default:
       {
         Serial.println("!!!! ERROR: ILLEGAL ADDRESS !!!!");
       }
@@ -481,7 +481,7 @@ void compassRequestEvent(void)
         }
             
         // ID
-        case C_ID_A
+        case C_ID_A:
         {
             // Fixed value
             Wire.write(byte(C_ID_A_VAL));
@@ -491,7 +491,7 @@ void compassRequestEvent(void)
 
         // Let master timeout
         default:
-            compssReadState = 0;
+            compassReadState = 0;
     }
 }
 
@@ -533,7 +533,7 @@ void gyroReceiveEvent(int HowMany)
       Serial.println(gyroData, HEX);
       
       // Handle multibyte write
-      if(gryoMulti)
+      if(gyroMulti)
       {
         gyroMultiCount--;
         gyroAddress++;
@@ -605,7 +605,7 @@ void gyroRequestEvent(void)
         case G_FIFO_S_REG:
         {
             // seven words ready, no errors
-            Wiree.write(byte(0x07));
+            Wire.write(byte(0x07));
             gyroReadState = 0;
             break;
         }
