@@ -168,7 +168,7 @@ struct ACCEL_DATA
                                            
 #define  A_FIFO_STS      0x39              // FIFO status
 #define  A_FIFO_CNT      0x3F              // FIFO count
-#define  A_FIFO_TRIG     (0x01 << 7)       // FIFO trigger envent occurred
+#define  A_FIFO_TRIG     (0x01 << 7)       // FIFO trigger event occurred
 
 ///////////////////////////////////////////////////////////////////////////////
 // CLASS AND METHOD DEFINITIONS
