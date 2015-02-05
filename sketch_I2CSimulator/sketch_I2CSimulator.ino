@@ -80,10 +80,13 @@ const int    Echo3 = ECHO3;
 volatile int  i2cConfig = 0;
 
 // Accelerometer simulator
-unsigned char  accelAddress;
+volatile unsigned char  accelAddress;
 unsigned char  accelReadState;
 unsigned char  accelWriteLength;
 unsigned char  accelDataIndex;
+volatile char  accelAccess;
+volatile unsigned char accelData;
+
 
 // Fake accelerometer data
 // Model a burst with a turn
@@ -173,6 +176,7 @@ void setup(void)
       case 0:
       {
         // Accelerometer simulator
+        accelAccess = 0;
         accelAddress = 0;
         accelReadState = 0;
         accelWriteLength = 0;
@@ -180,6 +184,7 @@ void setup(void)
         Wire.begin(ACCEL_IC_ADDRHI);
         Wire.onReceive(accelReceiveEvent);
         Wire.onRequest(accelRequestEvent);
+        Serial.println("ACCELEROMETER SELECTED");
         break;
       }
       
@@ -192,6 +197,7 @@ void setup(void)
         Wire.begin(B_IC_ADDR);
         Wire.onReceive(baroReceiveEvent);
         Wire.onRequest(baroRequestEvent);
+        Serial.println("BAROMETER SELECTED");
         break;
       }
       
@@ -204,6 +210,7 @@ void setup(void)
         Wire.begin(C_IC_ADR);
         Wire.onReceive(compassReceiveEvent);
         Wire.onRequest(compassRequestEvent);
+        Serial.println("COMPASS SELECTED");
         break;
       }
       
@@ -216,6 +223,7 @@ void setup(void)
         Wire.begin(GYRO_IC_ADDRHI);
         Wire.onReceive(gyroReceiveEvent);
         Wire.onRequest(gyroRequestEvent);
+        Serial.println("GYROSCOPE SELECTED");
         break;
       }
       
@@ -224,6 +232,7 @@ void setup(void)
         Serial.println("!!!! ERROR: ILLEGAL ADDRESS !!!!");
       }
     }
+    delay(500);
 }
 
 // Executive loop
@@ -231,10 +240,18 @@ int LoopCount = 0;
 void loop(void)
 {
   // Locals
-  Serial.print("Loop = ");
-  Serial.print(LoopCount);
-  Serial.println(" iterations");
-  delay(500);
+  LoopCount++;
+  if(accelAccess)
+  {
+      Serial.print("accel: I2C Write to ");
+      Serial.print(accelAddress, HEX);
+      Serial.print(" Data = ");
+      Serial.println(accelData, HEX);
+      accelAccess = 0;
+      delay(500);
+  }
+
+  delay(10000);
 }
 
 // Processing routines
@@ -242,9 +259,6 @@ void loop(void)
 // Accelerometer simulator
 void accelReceiveEvent(int howMany)
 {
-  // Accelerometer is not set up for multi-byte writes
-  unsigned char accelData;
-  
   while(Wire.available())
   {
     // Register address
@@ -257,18 +271,15 @@ void accelReceiveEvent(int howMany)
     {
       // Read data and echo it
       accelData = Wire.read();
-      Serial.print("accel: I2C Write to ");
-      Serial.print(accelAddress, HEX);
-      Serial.print(" Data = ");
-      Serial.println(accelData, HEX);
+      accelAccess = 1;
       accelReadState = 0;
     }
     else
     {
-      Serial.println("accelReceiveEvent state error");
       accelReadState = 0;
     }
   }
+  delay(500);
 }
 
 void accelRequestEvent(void)

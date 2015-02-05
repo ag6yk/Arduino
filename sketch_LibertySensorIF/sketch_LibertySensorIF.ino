@@ -60,10 +60,6 @@
 
 // Define the Pins used to interface to the IMU
 // SDA and SCL already defined for A4 and A5 respectively
-#define A_INT       A0
-#define T_INT       A1
-#define P_EOC       A2
-#define M_DRDY      A3
 
 // SPI interface commands
 #define CMD_GET_NAV_DATA    0xA6
@@ -135,11 +131,6 @@ const int    Echo2 = ECHO2;
 const int    Ping3 = PING3;          // Range sensor 3 (left)
 const int    Echo3 = ECHO3;
 
-const int   P_eoc   = P_EOC;        // Barometer end-of-conversion
-const int   M_drdy  = M_DRDY;       // Compass data ready
-const int   T_int   = T_INT;        // Gyro interrupt output
-const int   A_int   = A_INT;        // Accelerometer interrupt output
-
 // Instantiate four range sensor objects
 Ultrasonic rangeSensor0 = Ultrasonic::Ultrasonic(Ping0, Echo0);
 Ultrasonic rangeSensor1 = Ultrasonic::Ultrasonic(Ping1, Echo1);
@@ -194,6 +185,9 @@ void setup(void)
     int i;
     unsigned char *pptr;
     unsigned char *qptr;
+    
+    // DEBUG DEBUG DEBUG
+    delay(10000);
   
     // Set up the debugger
     Serial.begin(9600);
@@ -212,12 +206,6 @@ void setup(void)
     // Initialize the I2C as a master
     Wire.begin();
   
-    // Pin assignments
-    pinMode(P_eoc, INPUT);
-    pinMode(M_drdy, INPUT);
-    pinMode(T_int, INPUT);
-    pinMode(A_int, INPUT);
-  
     // Initialize the SPI as a slave
     pinMode(MISO, OUTPUT);
     pinMode(MOSI, INPUT);
@@ -231,7 +219,6 @@ void setup(void)
   
     // get ready for the SPI interrupt
     // Reset all state machines
-    SPITransferState = SPI_DATA_IDLE;
     SPIDataReadState = SPI_DATA_IDLE;
     SPIDataWriteState = SPI_DATA_LOCK;
     SPITransferCount = 0;
@@ -242,8 +229,8 @@ void setup(void)
     // Data writer will be held until first fill complete
 
     // Initialize the ping pong buffer
-    ReadPtr = (unsigned char*)&PingPong0;
-    WritePtr = (unsigned char*)&PingPong0;
+    ReadPtr = &PingPong0;
+    WritePtr = &PingPong0;
     PingPong0Ready = false;
     PingPong1Ready = false;
     Serial.println("SPI configured");
@@ -259,9 +246,9 @@ void setup(void)
   
   
   // Configure the accelerometer
-//  AccelStatus = imuAccel.begin();
-//  Serial.print("AccelStatus = ");
-//  Serial.println(AccelStatus, DEC);
+  AccelStatus = imuAccel.begin();
+  Serial.print("AccelStatus = ");
+  Serial.println(AccelStatus, DEC);
  
   // Configure the compass
 //  CompassStatus = imuCompass.begin();
@@ -410,7 +397,6 @@ ISR(SPI_STC_vect)
 void loop(void)
 {
   // Locals
-  Serial.println("I'm Loopy!");
   delay(5000);
   
 #if 0
@@ -440,6 +426,8 @@ void loop(void)
   ReadPtr->Range_3 = rangeSensor3.ReadRange();
   
   // And do it again, and again, ...
+  
+#endif
 }
 
 // End if LibertySensorIF.ino

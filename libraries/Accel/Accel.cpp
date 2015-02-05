@@ -44,6 +44,7 @@ int Accel::begin(void)
 {
   // Local
   boolean Responded;
+ unsigned char	i2cStatus;
 
   // Read the ID to verify data response
   // Start with address pin tied high
@@ -84,7 +85,11 @@ int Accel::begin(void)
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_TIME_INACT));
   Wire.write(byte(0x00));
-  Wire.endTransmission();
+  i2cStatus = Wire.endTransmission();
+  if(i2cStatus != 0)
+  {
+	  goto accelBeginError;
+  }
   
   // Free-fall threshold - ignore
   
@@ -95,7 +100,11 @@ int Accel::begin(void)
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_TAP_AXES));
   Wire.write(byte(0x00));
-  Wire.endTransmission();
+  i2cStatus = Wire.endTransmission();
+  if(i2cStatus != 0)
+  {
+	  goto accelBeginError;
+  }
   
   // BW_RATE - Default 100Hz, normal operation
   // 0b00001010
@@ -110,22 +119,32 @@ int Accel::begin(void)
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_PWR_CTRL));
   Wire.write(byte(0x00));
-  Wire.endTransmission();
+  i2cStatus = Wire.endTransmission();
+  if(i2cStatus != 0)
+  {
+	  goto accelBeginError;
+  }
+
   delayMicroseconds(5);
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_PWR_CTRL));
   Wire.write(byte(0x08));
-  Wire.endTransmission();
+  i2cStatus = Wire.endTransmission();
+  if(i2cStatus != 0)
+  {
+	  goto accelBeginError;
+  }
 
   // INT_ENABLE
-  // Enable DATA_READY
-  // Enable Watermark
-  // Enable Overrun
-  // 0b10000011
+  // 0b00000000
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_INT_ENABLE));
-  Wire.write(byte(0x83));
-  Wire.endTransmission();
+  Wire.write(byte(0x00));
+  i2cStatus = Wire.endTransmission();
+  if(i2cStatus != 0)
+  {
+	  goto accelBeginError;
+  }
 
   // INT_MAP
   // DATA_READY to INT1
@@ -135,7 +154,11 @@ int Accel::begin(void)
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_INT_MAP));
   Wire.write(byte(0x7C));
-  Wire.endTransmission();
+  i2cStatus = Wire.endTransmission();
+  if(i2cStatus != 0)
+  {
+	  goto accelBeginError;
+  }
   
   // DATA_FORMAT
   // No self test
@@ -148,7 +171,11 @@ int Accel::begin(void)
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_DATA_FMT));
   Wire.write(byte(0x16));
-  Wire.endTransmission();
+  i2cStatus = Wire.endTransmission();
+  if(i2cStatus != 0)
+  {
+	  goto accelBeginError;
+  }
 
   // FIFO_CTL
   // FIFO Mode - FIFO mode
@@ -158,11 +185,19 @@ int Accel::begin(void)
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_FIFO_CTL));
   Wire.write(byte(0x50));
-  Wire.endTransmission();
+  i2cStatus = Wire.endTransmission();
+  if(i2cStatus == 0)
+  {
+	  goto accelBeginSuccess;
+  }
+
+accelBeginError:
+	return i2cStatus;
   
   // NICE-TO-HAVE
   // Run self-test
 
+accelBeginSuccess:
   return 0;
 }
 
@@ -170,11 +205,16 @@ boolean Accel::readID()
 {
     // Locals
     unsigned char ReadBack;
+    unsigned char I2cStatus;
 
     // Read the ID to verify data response
     Wire.beginTransmission(_i2cAddress);
     Wire.write(byte(A_DEVID));
-    Wire.endTransmission();
+    I2cStatus = Wire.endTransmission();
+    Serial.print("Accel::readID:");
+    Serial.print("I2C Status = ");
+    Serial.println(I2cStatus, HEX);
+    delay(500);
     Wire.requestFrom(_i2cAddress, byte(1));
     // Wait for response with timeout
 	if(waitForI2CResponse(byte(1)) == false)
