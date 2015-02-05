@@ -45,6 +45,7 @@ int Accel::begin(void)
   // Local
   boolean Responded;
  unsigned char	i2cStatus;
+ unsigned char  i2cFlowCount = 0;
 
   // Read the ID to verify data response
   // Start with address pin tied high
@@ -61,6 +62,8 @@ int Accel::begin(void)
   {
       return -1;
   }
+
+  i2cFlowCount++;
 
   // Tap threshold - ignore
 
@@ -91,6 +94,7 @@ int Accel::begin(void)
 	  goto accelBeginError;
   }
   
+  i2cFlowCount++;
   // Free-fall threshold - ignore
   
   // Free-fall time - ignore
@@ -106,6 +110,7 @@ int Accel::begin(void)
 	  goto accelBeginError;
   }
   
+  i2cFlowCount++;
   // BW_RATE - Default 100Hz, normal operation
   // 0b00001010
   
@@ -125,6 +130,7 @@ int Accel::begin(void)
 	  goto accelBeginError;
   }
 
+  i2cFlowCount++;
   delayMicroseconds(5);
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_PWR_CTRL));
@@ -135,6 +141,7 @@ int Accel::begin(void)
 	  goto accelBeginError;
   }
 
+  i2cFlowCount++;
   // INT_ENABLE
   // 0b00000000
   Wire.beginTransmission(_i2cAddress);
@@ -146,6 +153,7 @@ int Accel::begin(void)
 	  goto accelBeginError;
   }
 
+  i2cFlowCount++;
   // INT_MAP
   // DATA_READY to INT1
   // Watermark to INT1
@@ -160,6 +168,7 @@ int Accel::begin(void)
 	  goto accelBeginError;
   }
   
+  i2cFlowCount++;
   // DATA_FORMAT
   // No self test
   // SPI dont care
@@ -177,6 +186,7 @@ int Accel::begin(void)
 	  goto accelBeginError;
   }
 
+  i2cFlowCount++;
   // FIFO_CTL
   // FIFO Mode - FIFO mode
   // Trigger - INT1
@@ -192,6 +202,10 @@ int Accel::begin(void)
   }
 
 accelBeginError:
+    Serial.println("Accel::begin");
+    Serial.print("Count = "); Serial.print(i2cFlowCount);
+    Serial.print("Status = "); Serial.println(i2cStatus);
+    delay(500);
 	return i2cStatus;
   
   // NICE-TO-HAVE
@@ -205,29 +219,49 @@ boolean Accel::readID()
 {
     // Locals
     unsigned char ReadBack;
-    unsigned char I2cStatus;
+    unsigned char i2cStatus;
+    unsigned char nBytes;
+    unsigned char i2cFlowCount = 0;
 
     // Read the ID to verify data response
     Wire.beginTransmission(_i2cAddress);
     Wire.write(byte(A_DEVID));
-    I2cStatus = Wire.endTransmission();
-    Serial.print("Accel::readID:");
-    Serial.print("I2C Status = ");
-    Serial.println(I2cStatus, HEX);
-    delay(500);
-    Wire.requestFrom(_i2cAddress, byte(1));
+    i2cStatus = Wire.endTransmission();
+    if(i2cStatus)
+    {
+        goto accelReadIDError;
+    }
+    
+    i2cFlowCount++;
+    nBytes = Wire.requestFrom(_i2cAddress, byte(1));
+    if(nBytes != 1)
+    {
+        i2cStatus = nBytes;
+        goto accelReadIDError;
+    }
+
+    i2cFlowCount++;
     // Wait for response with timeout
 	if(waitForI2CResponse(byte(1)) == false)
 	{
-		return false;
+        i2cStatus = 9;
+		goto accelReadIDError;
 	}
 
+    i2cFlowCount++;
     ReadBack = Wire.read();                   // read ID byte
     if(ReadBack == A_I_BETTER_BE)
     {
         return true;                         // Device is active and valid
     }
-    return false;                            // Error
+
+    // Process the error
+accelReadIDError:
+    Serial.println("Accel::readID");
+    Serial.print("Count  = "); Serial.println(i2cFlowCount);
+    Serial.print("Status = "); Serial.println(i2cStatus);
+    delay(500);
+    return false;
 }
 
 // Returns the fifo count or 0 for not ready

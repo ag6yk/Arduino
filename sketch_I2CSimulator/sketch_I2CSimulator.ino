@@ -80,12 +80,12 @@ const int    Echo3 = ECHO3;
 volatile int  i2cConfig = 0;
 
 // Accelerometer simulator
-volatile unsigned char  accelAddress;
-unsigned char  accelReadState;
-unsigned char  accelWriteLength;
-unsigned char  accelDataIndex;
-volatile char  accelAccess;
-volatile unsigned char accelData;
+volatile unsigned char  accelAddress[32];
+volatile unsigned char  accelData[32];
+volatile unsigned char  accelIndex;
+volatile char           accelAccess;
+unsigned char           accelReadState;
+unsigned char           accelDataIndex;
 
 
 // Fake accelerometer data
@@ -176,11 +176,15 @@ void setup(void)
       case 0:
       {
         // Accelerometer simulator
+        accelIndex = 0;
         accelAccess = 0;
-        accelAddress = 0;
         accelReadState = 0;
-        accelWriteLength = 0;
         accelDataIndex = 0;
+        for(i = 0; i < 32; i++)
+        {
+            accelAddress[i] = 0;
+            accelData[i] = 0;
+        }
         Wire.begin(ACCEL_IC_ADDRHI);
         Wire.onReceive(accelReceiveEvent);
         Wire.onRequest(accelRequestEvent);
@@ -239,93 +243,143 @@ void setup(void)
 int LoopCount = 0;
 void loop(void)
 {
-  // Locals
-  LoopCount++;
-  if(accelAccess)
-  {
-      Serial.print("accel: I2C Write to ");
-      Serial.print(accelAddress, HEX);
-      Serial.print(" Data = ");
-      Serial.println(accelData, HEX);
-      accelAccess = 0;
-      delay(500);
-  }
-
-  delay(10000);
+    // Locals
+    int i;
+    LoopCount++;
+    // Display interrupt processing post-mortem
+    if(accelAccess)
+    {
+        for(i=0; i < accelIndex; i++)
+        {
+            Serial.print("accel: I2C Write to ");
+            Serial.print(accelAddress[i], HEX);
+            Serial.print(" Data = ");
+            Serial.println(accelData[i], HEX);
+        }
+        accelAccess = 0;
+        delay(500);
+    }
 }
 
 // Processing routines
 
+///////////////////////////
 // Accelerometer simulator
+//////////////////////////
+
+// Receive single byte for writing
 void accelReceiveEvent(int howMany)
 {
-  while(Wire.available())
-  {
-    // Register address
-    if(accelReadState == 0)
+    while(Wire.available())
     {
-      accelAddress = Wire.read();
-      accelReadState++;
+        // See if storage available
+        if(accelIndex < 32)
+        {
+            // State0: Register address
+            if(accelReadState == 0)
+            {
+                // Read the register address
+                accelAddress[accelIndex] = Wire.read();
+                // Transition state
+                accelReadState++;
+            }
+            // State1: Data
+            else if(accelReadState == 1)
+            {
+                // Read data and log it
+                accelData[accelIndex] = Wire.read();
+                accelAccess = 1;
+                accelReadState = 0;
+                accelIndex++;
+                if(accelIndex > 31)
+                {
+                    accelIndex = 0;
+                }
+            }
+            // Illegal
+            else
+            {
+                // Reset state machine
+                accelReadState = 0;
+                accelIndex = 0;
+            }
+        }
+        else
+        {
+            // Log full, wait for main loop to empty
+            break;
+        }
     }
-    else if(accelReadState == 1)
-    {
-      // Read data and echo it
-      accelData = Wire.read();
-      accelAccess = 1;
-      accelReadState = 0;
-    }
-    else
-    {
-      accelReadState = 0;
-    }
-  }
-  delay(500);
 }
 
+// Read request
 void accelRequestEvent(void)
 {
-  // Process the possible requests
-  switch(accelAddress)
-  {
-    // Device ID - one byte
-    case A_DEVID:
+    // Locals
+    unsigned char   readAddress;
+    // Check for synchronization
+    if(accelReadState != 1)
     {
-        Wire.write(byte(A_I_BETTER_BE));
-        accelReadState = 0;
-        break;
+        return;
     }
-    
-    // Acceleration data - six bytes
-    case A_DATA_X0:
+
+    // State 2: master requested data
+    accelReadState++;
+    readAddress = accelAddress[accelIndex];
+    accelData[accelIndex++] = 0xFF;
+    if(accelIndex > 31)
     {
-        Wire.write(byte(accelSimData[accelDataIndex].xLSB));
-        Wire.write(byte(accelSimData[accelDataIndex].xMSB));
-        Wire.write(byte(accelSimData[accelDataIndex].yLSB));
-        Wire.write(byte(accelSimData[accelDataIndex].yMSB));
-        Wire.write(byte(accelSimData[accelDataIndex].zLSB));
-        Wire.write(byte(accelSimData[accelDataIndex].zMSB));
-        accelDataIndex++;
-        if(accelDataIndex > 31)
+        accelIndex = 0;
+    }
+
+
+    // Process the possible requests
+    switch(readAddress)
+    {
+        // Device ID - one byte
+        case A_DEVID:
         {
-            accelDataIndex = 0;
+            // Fixed value
+            Wire.write(byte(A_I_BETTER_BE));
+            // End of transmission
+            accelReadState = 0;
+            break;
         }
-        accelReadState = 0;
-        break;
-    }
-     
-    // FIFO status - one byte        
-    case A_FIFO_STS:
-    {
-        // No event, 9 words waiting
-        Wire.write(byte(0x09));
-        accelReadState = 0;
-        break;
-    }
     
-    default:
-        // Let the master timeout
-        accelReadState = 0;
-  }
+        // Acceleration data - six bytes
+        // Write out the simulated acceleration
+        // data
+        case A_DATA_X0:
+        {
+            Wire.write(byte(accelSimData[accelDataIndex].xLSB));
+            Wire.write(byte(accelSimData[accelDataIndex].xMSB));
+            Wire.write(byte(accelSimData[accelDataIndex].yLSB));
+            Wire.write(byte(accelSimData[accelDataIndex].yMSB));
+            Wire.write(byte(accelSimData[accelDataIndex].zLSB));
+            Wire.write(byte(accelSimData[accelDataIndex].zMSB));
+            accelDataIndex++;
+            if(accelDataIndex > 31)
+            {
+                accelDataIndex = 0;
+            }
+            // End of transmission
+            accelReadState = 0;
+            break;
+        }
+     
+        // FIFO status - one byte        
+        case A_FIFO_STS:
+        {
+            // No event, 9 words waiting
+            Wire.write(byte(0x09));
+            accelReadState = 0;
+            break;
+        }
+    
+        default:
+            // Let the master timeout
+            accelReadState = 0;
+    }// end switch
 }
     
   
