@@ -61,17 +61,22 @@
 // Define the Pins used to interface to the IMU
 // SDA and SCL already defined for A4 and A5 respectively
 
-// SPI interface commands
-#define CMD_GET_NAV_DATA    0xA6
-#define CMD_ABORT_TRANSFER  0xB9
-#define CMD_PERFORM_POST    0xC5
+// Pins 10-13 used as SPI interface
+// Pins 0-1 uses as serial debug monitor
 
-// SPI interface responses
-#define STS_NAV_DATA_NOT_READY  0x12
-#define STS_NAV_DATA_READY      0x36
-#define STS_ABORT_ACK           0x90
-#define STS_POST_PASS           0xA8
-#define STS_POST_FAIL_GYRO      0xF7
+// SPI pseudo register map
+//
+// Registers
+#define SPI_NAV_DATA_STS    0x10                // Status request
+#define SPI_NAV_DATA_DAT    0x20                // read nav data (autoincrement)
+#define SPI_PERFORM_POST    0x30                // run self-test (future, reserved)
+
+// Nav data status responses
+#define STS_NAV_DATA_READY      (0x01 << 0)     // bit set indicates ready
+
+// POST responses
+#define STS_POST_PASS           0x01            // Success
+#define STS_POST_FAIL_GYRO      0xF7            // Failure codes
 #define STS_POST_FAIL_ACCEL     0xF8
 #define STS_POST_FAIL_COMPASS   0xF9
 #define STS_POST_FAIL_BARO      0xFA
