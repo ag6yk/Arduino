@@ -55,7 +55,7 @@
 #define SPI_PERFORM_POST    0x30                // run self-test (future, reserved)
 
 // Nav data status responses
-#define STS_NAV_DATA_NOT_READY  (0x01 << 0)     // bit set indicates busy
+#define STS_NAV_DATA_READY      (0x01 << 0)     // bit set indicates ready
 
 // POST responses
 #define STS_POST_PASS           0x01            // Success
@@ -103,8 +103,8 @@ struct NAV_DATA
 ///////////////////////////////////////////////////////////////////////////////
 
 // SPI input buffer
-struct NAV_DAtA inBuf;
-struct NAV_DATA *pBuf; = &inBuf;
+struct NAV_DATA inBuf;
+struct NAV_DATA *pBuf = &inBuf;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -145,15 +145,40 @@ void loop(void)
 {
     // Locals
     unsigned char   SPIData;
+    int i;
+    unsigned char *lBuf = (unsigned char*)pBuf;
 
     // See if the data is ready
-    digitalWrite(SS, LOW);
-    SPI.transfer(SPI_NAV_DATA_STS);
-    
+    digitalWrite(SS, LOW);              // enable arduino
+    SPI.transfer(SPI_NAV_DATA_STS);     // write address
+    SPIData = SPI.transfer(0x00);       // read the response
+    digitalWrite(SS, HIGH);             // disable SPI
+    if(SPIData & STS_NAV_DATA_READY)
+    {
+        // Read the Nav data
+        for(i = 0; i < sizeof(NAV_DATA); i++)
+        {
+            digitalWrite(SS, LOW);
+            SPI.transfer(SPI_NAV_DATA_DAT);
+            *lBuf++ = SPI.transfer(0x00);
+            digitalWrite(SS, HIGH);
+        }
+        lBuf = (unsigned char*)pBuf;
 
+        // Display the current nav data
+        Serial.println("Nav Data:");
+        for(i=0; i < sizeof(NAV_DATA); i++)
+        {
+            Serial.print("Data = ");
+            Serial.println(*lBuf++, HEX);
+        }
+        // Display
+        delay(500);
+    }
+    // Wait for a fresh update
+    delay(10);
   
-  
-  // And do it again, and again, ...
+    // And do it again, and again, ...
 }
 
 // End of sketch_SPISimulator.ino
