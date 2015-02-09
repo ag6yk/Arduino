@@ -40,6 +40,8 @@ ISR (SPI_STC_vect)
   SPDR = foo;
   foo++;
   process_it = true;
+  Serial.print("Rcvd: "); Serial.println(bar, DEC);
+  Serial.print("Sent:, ") ; Serial.println(foo, DEC);
   // add to buffer if room
 }  // end of interrupt routine SPI_STC_vect
 
@@ -50,8 +52,7 @@ void loop (void)
   if (process_it)
     {
       // terminate string
-      Serial.print("SPI Sent "); Serial.println(foo, DEC); 
-      Serial.print("SPI Detected! "); Serial.println (bar, DEC);
+      Serial.println("SPI Detected! ");
       process_it = false;
       delay(1000);
       

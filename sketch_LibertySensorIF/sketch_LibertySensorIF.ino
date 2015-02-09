@@ -69,7 +69,8 @@
 // Registers
 #define SPI_NAV_DATA_STS    0x10                // Status request
 #define SPI_NAV_DATA_DAT    0x20                // read nav data (autoincrement)
-#define SPI_PERFORM_POST    0x30                // run self-test (future, reserved)
+#define SPI_SET_ORIGIN      0x30                // set the current position to (0,0,0)
+#define SPI_PERFORM_POST    0x40                // run self-test (future, reserved)
 
 // Nav data status responses
 #define STS_NAV_DATA_READY      (0x01 << 0)     // bit set indicates ready
@@ -146,7 +147,7 @@ Ultrasonic rangeSensor3 = Ultrasonic::Ultrasonic(Ping3, Echo3);
 // NAV data buffers
 // Data will be double-buffered ("ping-pong") with the
 // intent that the SPI interrupt service routine will be 
-// reading data from one buffer while the other can be filled
+// providing data from one buffer while the other can be filled
 // in the main processing loop
 // Read pointer is used by the main loop
 // Write pointer is used by the interrupt service routine
@@ -191,9 +192,6 @@ void setup(void)
     unsigned char *pptr;
     unsigned char *qptr;
     
-    // DEBUG DEBUG DEBUG
-    delay(10000);
-  
     // Set up the debugger
     Serial.begin(9600);
     Serial.println("Setup Debug Info...");

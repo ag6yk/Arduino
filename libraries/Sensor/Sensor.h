@@ -30,13 +30,28 @@
 // DEFINES
 ////////////////////////////////////////////////////////////////////////////////
 
+// 200 Hz update rate
+#define	UPDATE_200HZ
+
+// Trapezoidal integration
+// Define the Horner coefficients for the intervals
+#ifdef	UPDATE_100HZ
+#define INTEGRATE_FACTOR1	7
+#define	INTEGRATE_FACTOR2	9
+#else
+#ifdef	UPDATE_200HZ
+#define INTEGRATE_FACTOR1	6
+#define INTEGRATE_FACTOR2	8
+#endif
+#endif
+
 // Define a numerical processing buffer for computing
 // the integral of a data stream
 struct NUM_BUFFER
 {
-	int		tn2;	 					// Value at t(n-2)
-	int		tn1;						// Value at t(n-1)
-	int		tn;							// Value at t(n)
+	signed short	tn2;	 					// Value at t(n-2)
+	signed short	tn1;						// Value at t(n-1)
+	signed short	tn;							// Value at t(n)
 };
 
 // Define the sensor status bitmap
@@ -55,13 +70,19 @@ class Sensor
 {
 
   private:
-    int _samples[8];                        	// average 8 samples
+    int _samples[8];                        								// average 8 samples
   
   public:
     Sensor();
     ~Sensor();
-    boolean waitForI2CResponse(byte nBytes);			// Returns true if device responds OK I2C only
-    int AvgFilter(int* Data);      						// Signal averaging
+    boolean waitForI2CResponse(byte nBytes);								// Returns true if device responds OK I2C only
+    signed short rsh_sgn16(signed short oldVal, int nbits);					// signed shifts - allows fast fixed math with signed values
+    signed short lsh_sgn16(signed short oldVal, int nbits);
+    signed char rsh_sgn8(signed char oldVal, int nbits);
+    signed char lsh_sgn8(signed char oldVal, int nbits);
+    signed short DigFilter(signed short* Data0, signed short* Data1);		// single pole low pass filter
+    signed short AvgFilter(signed short* Data);      						// Signal averaging
+    signed short trapIntegral(signed short Data0, signed short Data1);		// for the region and fixed interval
   
 };
 #endif

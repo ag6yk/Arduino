@@ -66,14 +66,174 @@ boolean Sensor::waitForI2CResponse(byte nBytes)
 	return false;
 }
 
+// Perform a right shift on a signed 16-bit value
+signed short Sensor::rsh_sgn16(signed short oldVal, int nbits)
+{
+	// Locals
+	unsigned short	signTest;
+	unsigned short	absVal;
+	signed short	newVal;
+
+	// Check the sign of the input value
+	signTest = (unsigned short)oldVal;
+	absVal = (unsigned short)oldVal;
+
+	// Correct for sign if required
+	if(signTest & 0x8000)
+	{
+		absVal = absVal - 1;
+		absVal = ~absVal;
+	}
+
+	// Compute the shift
+	absVal >>= nbits;
+
+	// Restore sign if required
+	if(signTest & 0x8000)
+	{
+		absVal = ~absVal;
+		absVal++;
+	}
+
+	// Cast back to signed value
+	newVal = (signed short)absVal;
+
+	return(newVal);
+
+}
+
+// Perform a left shift on a signed 16-bit value
+signed short Sensor::lsh_sgn16(signed short oldVal, int nbits)
+{
+	// Locals
+	unsigned short	signTest;
+	unsigned short	absVal;
+	signed short	newVal;
+
+	// Check the sign of the input value
+	signTest = (unsigned short)oldVal;
+	absVal = (unsigned short)oldVal;
+
+	// Correct for sign if required
+	if(signTest & 0x8000)
+	{
+		absVal = absVal - 1;
+		absVal = ~absVal;
+	}
+
+	// Compute the shift
+	absVal <<= nbits;
+
+	// Restore sign if required
+	if(signTest & 0x8000)
+	{
+		absVal = ~absVal;
+		absVal++;
+	}
+
+	// Cast back to signed value
+	newVal = (signed short)absVal;
+
+	return(newVal);
+}
+
+// Perform a right shift on a signed 8-bit value
+signed char Sensor::rsh_sgn8(signed char oldVal, int nbits)
+{
+	// Locals
+	unsigned char	signTest;
+	unsigned char	absVal;
+	signed char		newVal;
+
+	// Check the sign of the input value
+	signTest = (unsigned char)oldVal;
+	absVal = (unsigned char)oldVal;
+
+	// Correct for sign if required
+	if(signTest & 0x80)
+	{
+		absVal = absVal - 1;
+		absVal = ~absVal;
+	}
+
+	// Compute the shift
+	absVal >>= nbits;
+
+	// Restore sign if required
+	if(signTest & 0x80)
+	{
+		absVal = ~absVal;
+		absVal++;
+	}
+
+	// Cast back to signed value
+	newVal = (signed char)absVal;
+
+	return(newVal);
+}
+
+// Perform a left shift on a signed 8-bit value
+signed char Sensor::lsh_sgn8(signed char oldVal, int nbits)
+{
+	// Locals
+	unsigned char	signTest;
+	unsigned char	absVal;
+	signed char		newVal;
+
+	// Check the sign of the input value
+	signTest = (unsigned char)oldVal;
+	absVal = (unsigned char)oldVal;
+
+	// Correct for sign if required
+	if(signTest & 0x80)
+	{
+		absVal = absVal - 1;
+		absVal = ~absVal;
+	}
+
+	// Compute the shift
+	absVal <<= nbits;
+
+	// Restore sign if required
+	if(signTest & 0x80)
+	{
+		absVal = ~absVal;
+		absVal++;
+	}
+
+	// Cast back to signed value
+	newVal = (signed char)absVal;
+
+	return(newVal);
+}
+
+// Execute a single pole low-pass filter on data stream
+signed short Sensor::DigFilter(signed short* Data0, signed short* Data1)
+{
+	// Locals
+	signed short	temp1;
+	signed short	temp2;
+
+	// Digital filter takes the form
+	// Xfilter(t) = Xn(t) * alpha - (1-alpha) * Xn-1(t)
+	// If alpha is chosen to be 0.5, the equation reduces:
+	// Xfilter(t) = (Xn(t) - Xn-1(t)) / 2
+	// Which can be implemented using a right shift and subtraction
+	// Perform the shift after the subtraction to 1) retain sign and 2) precision
+	temp1 = *Data1 - *Data0;
+	temp2 = rsh_sgn16(temp1, 1);
+	return(temp2);
+}
+
 // Perform signal averaging on an array of 16-bit signed integers
-int Sensor::AvgFilter(int* Data)
+signed short Sensor::AvgFilter(signed short* Data)
 {
   // Average 8 signals together
   int i;
-  int Sum = 0;
-  unsigned int SignTest;
-  unsigned int AbsSum;
+  signed short Sum = 0;
+  signed short filteredValue;
+
+  unsigned short AbsSum;
 
   for(i = 0; i < 8; i++)
   {
@@ -81,33 +241,45 @@ int Sensor::AvgFilter(int* Data)
 	  Sum = Sum + *Data++;
   }
 
-  // These are signed values so
-  // play a trick to do fast division
-  SignTest = (unsigned int)Sum;
-  AbsSum = SignTest;
+  // Divide by 8 using shifts
+  filteredValue = rsh_sgn16(Sum, 3);
 
-  // Compute the absolute value of Sum
-  if(SignTest & 0x8000)
-  {
-	  AbsSum = AbsSum - 1;
-	  AbsSum = ~AbsSum;
-  }
-
-  // Quick divide by 8
-  AbsSum = AbsSum >> 3;
-
-  // Restore sign if required
-  if(SignTest & 0x8000)
-  {
-	  AbsSum = ~AbsSum;
-	  AbsSum++;
-  }
-
-  // Recast to signed
-  Sum = (signed int)AbsSum;
-
-  return Sum;
+  return filteredValue;
 }
+
+// Compute the trapezoidal integral for the input region
+signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
+{
+	// Locals
+	signed short	newVal;
+	signed short	temp1;
+	signed short	temp2;
+	signed short	temp3;
+
+	// Estimate the integral over the region using the
+	// trapezoidal rule:
+	// Intgr(t) ~= deltaT * [(f(tn) - f(tn-1))/2]
+	// deltaT is fixed in this application, therefore
+	// Horner's rule can be used to convert the multiplication
+	// of a fraction (i.e. division) into a series of shifts and
+	// additions.
+	// for deltaT = 1/100: x/100 ~= (x >> 7) + (x >> 9) with 2.3% error
+	//            = 1/200: x/200 ~= (x >> 6) + (x >> 8) with 5% error
+	// Parameterize these values since the form is identical
+
+	// Compute the first term  f(tn) - f(tn-1)/2
+	temp1 = Data1 - Data0;
+	temp2 = rsh_sgn16(temp1, 1);
+
+	// Multiply by the time interval and compute the integral
+	temp1 = rsh_sgn16(temp2, INTEGRATE_FACTOR1);
+	temp3 = rsh_sgn16(temp2, INTEGRATE_FACTOR2);
+	newVal = temp1 + temp3;
+
+	return(newVal);
+
+}
+
 
 // Destructor
 Sensor::~Sensor()

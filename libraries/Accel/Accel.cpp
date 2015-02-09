@@ -112,7 +112,16 @@ int Accel::begin(void)
   
   i2cFlowCount++;
   // BW_RATE - Default 100Hz, normal operation
-  // 0b00001010
+  // Update - increase BW to 200Hz initially
+  // 0b00001011
+  Wire.beginTransmission(_i2cAddress);
+  Wire.write(byte(A_BW_RATE));
+  Wire.write(byte(0x0B));
+  i2cStatus = Wire.endTransmission();
+  if(i2cStatus != 0)
+  {
+	  goto accelBeginError;
+  }
   
   // POWER_CTL
   // Link bit not used
@@ -174,12 +183,12 @@ int Accel::begin(void)
   // SPI dont care
   // INT_INVERT to active high
   // FULL_RES enabled
-  // Justify Left
-  // Range +/- 8g
-  // 0b00010110
+  // Justify right
+  // Range +/- 2g
+  // 0b00001000
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_DATA_FMT));
-  Wire.write(byte(0x16));
+  Wire.write(byte(0x08));
   i2cStatus = Wire.endTransmission();
   if(i2cStatus != 0)
   {
@@ -201,17 +210,19 @@ int Accel::begin(void)
 	  goto accelBeginSuccess;
   }
 
+  // Error processing
 accelBeginError:
     Serial.println("Accel::begin");
     Serial.print("Count = "); Serial.print(i2cFlowCount);
     Serial.print("Status = "); Serial.println(i2cStatus);
     delay(500);
 	return i2cStatus;
-  
-  // NICE-TO-HAVE
-  // Run self-test
 
+	// Successful processing
 accelBeginSuccess:
+	Serial.println("Accel::begin");
+	Serial.print("I2C address = "); Serial.println(_i2cAddress, HEX);
+	delay(500);
   return 0;
 }
 
@@ -250,10 +261,17 @@ boolean Accel::readID()
 
     i2cFlowCount++;
     ReadBack = Wire.read();                   // read ID byte
-    if(ReadBack == A_I_BETTER_BE)
+    if(ReadBack != A_I_BETTER_BE)
     {
-        return true;                         // Device is active and valid
+    	i2cStatus = 99;
+        goto accelReadIDError;                // Device is active and valid
     }
+
+    // Process success
+accelReadIDSuccess:
+	Serial.println("Accel::readID - good ID");
+	delay(500);
+	return true;
 
     // Process the error
 accelReadIDError:
@@ -268,22 +286,39 @@ accelReadIDError:
 int Accel::available()
 {
 	// Locals
+	byte	i2cStatus;
 	byte	fifoCount = 0;
 
-	// Read the fifo register
+	// Read the fifo status register
 	Wire.beginTransmission(_i2cAddress);
 	Wire.write(byte(A_FIFO_STS));
-	Wire.endTransmission();
+	i2cStatus = Wire.endTransmission();
+	if(i2cStatus)
+	{
+		goto accelAvailableError;
+	}
+
 	Wire.requestFrom(_i2cAddress, byte(1));
 	if(waitForI2CResponse(byte(1)) == false)
 	{
+		// Return count of 0 for timeout
 		return 0;
 	}
+	// Read the FIFO count
 	fifoCount = Wire.read();
 	fifoCount &= A_FIFO_CNT;
 	// Save for use by other members
 	_afifoCount = fifoCount;
+
+	// Process the success
 	return(fifoCount);
+
+	// Process the error
+accelAvailableError:
+	Serial.println("Accel::available");
+	Serial.print("Status = "); Serial.println(i2cStatus);
+	delay(500);
+	return 0;
 }
 
 // Block read the acceleration data
@@ -329,7 +364,7 @@ int Accel::ReadXYZ(ACCEL_DATA* pAcData)
 // V(t) = intr(A(t)) ~= (del_t) * (A(t) - A(t-1))/2
 // X(t) = intr(V(t)) ~= (del_t) * (V(t) - V(t-1))/2
 // Position requires at least 3 samples to compute
-// Velocity required at least two samples to compute
+// Velocity require at least two samples to compute
 int Accel::ComputeVXoft(NUM_BUFFER *n, int* Value)
 {
 	// Locals
