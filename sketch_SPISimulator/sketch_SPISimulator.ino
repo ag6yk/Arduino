@@ -52,7 +52,8 @@
 // Registers
 #define SPI_NAV_DATA_STS    0x10                // Status request
 #define SPI_NAV_DATA_DAT    0x20                // read nav data (autoincrement)
-#define SPI_PERFORM_POST    0x30                // run self-test (future, reserved)
+#define SPI_NAV_DATA_ORIGIN 0x30
+#define SPI_PERFORM_POST    0x40                // run self-test (future, reserved)
 
 // Nav data status responses
 #define STS_NAV_DATA_READY      (0x01 << 0)     // bit set indicates ready
