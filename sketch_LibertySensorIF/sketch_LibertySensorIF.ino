@@ -69,13 +69,14 @@
 // SPI pseudo register map
 //
 // Registers
-#define SPI_NAV_DATA_STS    0x10                // Status request
-#define SPI_NAV_DATA_DAT    0x20                // read nav data (autoincrement)
-#define SPI_SET_ORIGIN      0x30                // set the current position to (0,0,0)
-#define SPI_PERFORM_POST    0x40                // run self-test (future, reserved)
+#define SPI_SET_ORIGIN          0x10            // set the current position to (0,0,0)
+#define SPI_NAV_DATA_STS        0x20            // Status request
+#define SPI_NAV_DATA_DAT        0x30            // read nav data (autoincrement)
+#define SPI_PERFORM_POST        0x40            // run self-test (future, reserved)
 
 // Nav data status responses
 #define STS_NAV_DATA_READY      (0x01 << 0)     // bit set indicates ready
+#define STS_NAV_DATA_NREADY     0x00            // not ready macro
 
 // POST responses
 #define STS_POST_PASS           0x01            // Success
@@ -84,11 +85,35 @@
 #define STS_POST_FAIL_COMPASS   0xF9
 #define STS_POST_FAIL_BARO      0xFA
 
-// SPI reader and write state values
-#define SPI_DATA_IDLE           0x00
-#define SPI_DATA_BUSY0          0x01
-#define SPI_DATA_BUSY1          0x02
-#define SPI_DATA_LOCK           0x03
+//////////////////
+// SPI Interface
+//////////////////
+
+/*!
+The SPI interface will use a register-based architecture. The RobotRIO master
+will write to pseudo-register addresses to command the Arduino slave to 
+see if a new nav data packet is ready, to send a packet of nav data, 
+to set the origin, and in future to run calibration and self-test
+
+The Nav data will be updated every 20 milliseconds, with the Arduino 
+collecting/processing the data in the first 10 millisconds and the other
+10 milliseconds transferring the data. Depending on processor throughput this
+update rate may be increased (e.g. 10ms, 5ms processing 5ms transferring)
+
+The nav data will be double-buffered, with the main processing loop reading
+the sensors, processing the data, and filling one buffer while the other
+buffer is available to the SPI interface. The buffers will be accessed by
+dedicated pointers, one for producing and one for consuming.
+The producer will have control of the buffer switching. 
+
+*/
+
+///////////////////////
+// SPI Transfer states
+///////////////////////
+
+#define SPI_XFR_IDLE    0               // Idle
+#define SPI_XFR_ACTIVE  1               // Producing or consuming
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -142,62 +167,34 @@ const int    Ping4 = PING4;          // Range sensor 4 (left)
 const int    Echo4 = ECHO4;
 
 // Instantiate five range sensor objects
-Ultrasonic rangeSensor0 = Ultrasonic::Ultrasonic(Ping0, Echo0);
-Ultrasonic rangeSensor1 = Ultrasonic::Ultrasonic(Ping1, Echo1);
-Ultrasonic rangeSensor2 = Ultrasonic::Ultrasonic(Ping2, Echo2);
-Ultrasonic rangeSensor3 = Ultrasonic::Ultrasonic(Ping3, Echo3);
-Ultrasonic rangeSensor4 = Ultrasonic::Ultrasonic(Ping4, Echo4);
+Ultrasonic rangeSensor0(Ping0, Echo0);
+Ultrasonic rangeSensor1(Ping1, Echo1);
+Ultrasonic rangeSensor2(Ping2, Echo2);
+Ultrasonic rangeSensor3(Ping3, Echo3);
+Ultrasonic rangeSensor4(Ping4, Echo4);
 
-//////////////////
-// SPI Interface
-//////////////////
 
-/*!
-The SPI interface will use a register-based architecture. The RobotRIO master
-will write to pseudo-register addresses to command the Arduino slave to 
-see if a new nav data packet is ready, to send a packet of nav data, 
-to set the origin, and in future to run calibration and self-test
+/////////////////////////////////
+// NAV data buffers and pointers
+/////////////////////////////////
 
-The Nav data will be updated every 20 milliseconds, with the Arduino 
-collecting/processing the data in the first 10 millisconds and the other
-10 milliseconds transferring the data. Depending on processor throughput this
-update rate may be increased (e.g. 10ms, 5ms processing 5ms transferring)
-
-The nav data will be double-buffered, with the main processing loop reading
-the sensors, processing the data, and filling one buffer while the other
-buffer is available to the SPI interface. The buffers will be accessed by
-dedicated pointers, one for producing and one for consuming. 
-
-*/
-
-///////////////////////
-// SPI Transfer states
-///////////////////////
-
-#define SPI_XFR_IDLE    0               // Idle
-#define SPI_XFR_ACTIVE  1               // Producing or consuming
-#define SPI_XFR_SWAP    2               // Waiting to swap pointers or overwrite
-#define SPI_XFR_TRANS   3               // pointers swap ready to refresh
-
-/////////////////////
-// NAV data buffers
-/////////////////////
 struct NAV_DATA navBuffer0;
-struct NAV_DATA navBuffer11;
+struct NAV_DATA navBuffer1;
 struct NAV_DATA* producer = &navBuffer0;
 struct NAV_DATA* consumer = &navBuffer1;
 
 // Producer state variables
 volatile int        producerCount;          // Data counter
 volatile int        producerState;          // main state variable
-volatile boolean    producerLock;           // true = current buffer locked
-volatile boolen     producerEnable;         // true = producer can update 
 
 // Consumer state variables
 volatile int        consumerCount;          // Data counter
 volatile int        consumerState;          // main state variable
 volatile boolean    consumerLock;           // true = current buffer locked
 volatile boolean    consumerEnable;         // true = consumer can update
+
+// Inter-process variables
+volatile boolean    spiSetOrigin;           // true = read current position, set as 0,0
 
 // Device status
 int             GyroStatus;                 // 0 = device OK
@@ -256,16 +253,21 @@ void setup(void)
     producer = &navBuffer0;
     producerCount = 0;
     producerState = SPI_XFR_IDLE;
-    producerLock = false;
-    producerEnable = true;
     
     // Initialize the consumer state machine
     // Put on hold until the first nav data is ready 
     consumer = &navBuffer0;
     consumerCount = 0;
-    consumerState = SPI_XFR_TRANS;
+    consumerState = SPI_XFR_IDLE;
     consumerLock = false;
     consumerEnable = false;
+    
+    // Initialize the inter-process variables
+    spiSetOrigin = false;
+    
+    // Preset the SPI buffer 
+    SPDR = STS_NAV_DATA_NREADY;
+    
   
     Serial.println("SPI configured");
     delay(500);
@@ -305,52 +307,141 @@ ISR(SPI_STC_vect)
 {
     // Locals
     byte spiData;
-
-    // First check for any data from the master
+    
+    // The nature of SPI guarantees we have some
+    // data
     spiData = SPDR;
     
-    // Process the interrupt based on the state machine
+    // Process the interrupt based on the state and
+    // the input value
     switch(consumerState)
     {
+        // Idle, waiting for new command
+        case SPI_XFR_IDLE:
+        {
+            // Process each register
+            switch(spiData)
+            {
+                // Set the inter-process flag
+                case SPI_SET_ORIGIN:
+                {
+                    spiSetOrigin = true;
+                    break;
+                }
+                
+                // Report whether new data is available
+                case SPI_NAV_DATA_STS:
+                {
+                    if(consumerEnable == true)
+                    {
+                        spiData = STS_NAV_DATA_READY;
+                        break;
+                    }
+                    else
+                    {
+                        spiData = STS_NAV_DATA_NREADY;
+                        break;
+                    }
+                }
+
+                // Read Nav data
+                case SPI_NAV_DATA_DAT:
+                {
+                    // If the buffers are not locked
+                    // begin transmission
+                    
+                    // Else set data not ready
+                    break;
+                }
+                
+                // Illegal or dummy write
+                default:
+            }// End switch
+
+        
+        // Actively transferring nav data
+        case SPI_XFR_ACTIVE:
+            // Process each register
+            switch(spiData)
+            {
+                // Set the inter-process flag
+                case SPI_SET_ORIGIN:
+                {
+                    // Transition to IDLE
+                    // Signal the main loop to re-set the origin
+                    spiSetOrigin = true;
+                    break;
+                }
+                
+                // Report whether new data is available
+                case SPI_NAV_DATA_STS:
+                {
+                    // Transition to IDLE
+                    if(consumerEnable == true)
+                    {
+                        spiData = STS_NAV_DATA_READY;
+                        break;
+                    }
+                    else
+                    {
+                        spiData = STS_NAV_DATA_NREADY;
+                        break;
+                    }
+                }
+
+                // Read Nav data
+                case SPI_NAV_DATA_DAT:
+                {
+                    // Continue processing
+                    // If the buffers are not locked
+                    // begin transmission
+                    
+                    // Else set data not ready
+                    break;
+                }
+                
+                // Dummy write to receive data
+                default:
+                {
+                    // Continue processing nav data
+                }
+            }// End switch
+
+        // Illegal state - go to IDLE
         default:
         {
-            // ignore
         }
-    }// end switch
+    }// End switch
+        
 }
 #endif 
 
 // Executive loop
 void loop(void)
 {
-  // Locals
-  delay(5000);
-  
 #if 0
   
-  // SPI transactions handled in interrupt
- 
-  // Process IMU
+  // Process IMU. This will occur every 10 ms
   
-  // Check if new Gyro data is available
+  // Process any new accelerometer data
   
-  // If so, read and process the Gyro data
+  // Process any new Gyroscope data
   
-  // Check if new Accelerometer data is available
+  // Process any new Compass data
   
-  // If so, read and process the accelerometer data
+  // FUTURE: Process any new pressure data
   
-  // Check if new Compass data is available
-  
-  // If so, read and process the compass data
-  
-  // FUTURE: Check if new pressure or temperature data is available
+  // FUTURE: Process any new temperature data
  
   // Process Range sensors
-  ReadPtr->Range_0 = rangeSensor0.ReadRange();
-  ReadPtr->Range_1 = rangeSensor1.ReadRange();
-  ReadPtr->Range_2 = rangeSensor2.ReadRange();
-  ReadPtr->Range_3 = rangeSensor3.ReadRange();
+  producer->Range_0 = rangeSensor0.ReadRange();
+  producer->Range_1 = rangeSensor1.ReadRange();
+  producer->Range_2 = rangeSensor2.ReadRange();
+  producer->Range_3 = rangeSensor3.ReadRange();
+  producer->Range_4 = rangeSensor4.ReadRange();
+  
+  // Switch nav data buffers if available
+  // If not wait 1 ms and try again
   
   // And do it again, and again, ...
   
