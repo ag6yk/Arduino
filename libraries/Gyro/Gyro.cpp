@@ -36,7 +36,28 @@
 // Constructor
 Gyro::Gyro(void)
 {
-    // Place holder
+    // Locals
+    int i;
+    // Initialize the private variables
+    _i2cAddress = 0;
+
+    for(i = 0; i < 32; i++)
+    {
+        _gBuf[i].hLSB = 0;
+        _gBuf[i].hMSB = 0;
+        _gBuf[i].pLSB = 0;
+        _gBuf[i].pMSB = 0;
+        _gBuf[i].yLSB = 0;
+        _gBuf[i].yMSB = 0;
+    }
+
+    _gfifoCount = 0;
+    _gdRoll = 0;
+    _gdPitch = 0;
+    _gdYaw = 0;
+    _gHeading = 0;
+    _gPitch = 0;
+
 }
 
 // Specific initialization
@@ -233,11 +254,52 @@ int Gyro::ReadGyroData(GYRO_DATA* pGData)
 	return 0;
 }
 
-
-// Signal averaging filter
-int Gyro::AvgFilter(int* Data)
+// Process rate data
+int Gyro::ProcessGyroData()
 {
-  return 0;
+    // placeholder
+    return 0;
+}
+
+// Compute heading from the vector data
+int Gyro::ComputeHeading(GYRO_DATA *g)
+{
+    // Placeholder
+    return 0;
+}
+
+// Compute pitch from the vector data
+int Gyro::ComputePitch(GYRO_DATA *g)
+{
+    // Placeholder
+    return 0;
+}
+
+
+// Accessors
+signed short Gyro::getHeading()
+{
+    return _gHeading;
+}
+
+signed short Gyro::getPitch()
+{
+    return _gPitch;
+}
+
+signed short Gyro::getdRoll()
+{
+    return _gdRoll;
+}
+
+signed short Gyro::getdPitch()
+{
+    return _gdPitch;
+}
+
+signed short Gyro::getdYaw()
+{
+    return _gdYaw;
 }
 
 // Destructor

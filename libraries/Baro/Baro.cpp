@@ -40,7 +40,20 @@
 // Constructor
 Baro::Baro()
 {
-  // Placeholder
+    // Locals
+    int i;
+
+    // Initialize the private variables
+    _i2cAddress = 0;
+
+    for(i = 0; i < 11; i++)
+    {
+        _eeCoefficients[i] = 0;
+    }
+
+    _bPressure = 0;
+    _bTemperature = 0;
+
 }
 
 // Specialized initialization
@@ -150,19 +163,39 @@ boolean Baro::readID()
 // Read and filter the barometric pressure
 int Baro::ReadPressure()
 {
-  return 0;
+    return 0;
 }
 
 // Read and filter the temperature
 int Baro::ReadTemperature()
 {
-  return 0;
+    return 0;
 }
 
-// Signal averaging
-int Baro::AvgFilter(int *Data)
+// Measure and process the atmospheric pressure
+int Baro::ProcessPressureData()
 {
-  return 0;
+    // Place holder
+    return 0;
+}
+
+// Measure and process the temperature
+int Baro::ProcessTemperatureData()
+{
+    // Placeholder
+    return 0;
+}
+
+// Accessors
+
+signed short Baro::getPressure()
+{
+    return _bPressure;
+}
+
+signed short Baro::getTemperature()
+{
+    return _bTemperature;
 }
 
 // Destructor

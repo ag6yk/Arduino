@@ -182,12 +182,12 @@ class Accel : public Sensor
         int					_afifoCount;
         NUM_BUFFER			_aXComputing;
         NUM_BUFFER			_aYComputing;
-        int					_accelerationX;
-        int					_velocityX;
-        int					_positionX;
-        int					_accelerationY;
-        int					_velocityY;
-        int					_positionY;
+        signed short		_accelerationX;
+        signed short		_velocityX;
+        signed short		_positionX;
+        signed short		_accelerationY;
+        signed short		_velocityY;
+        signed short		_positionY;
 
     public:
         Accel();                            // Constructor
@@ -201,6 +201,15 @@ class Accel : public Sensor
         int ComputeVXoft(NUM_BUFFER *n, int* Value);
         									// from sampled data
         int ProcessAccelData();				// Process X and Y axes
+        signed short getAccelerationX();    // accessors
+        signed short getAccelerationY();
+        signed short getVelocityX();
+        signed short getVelocityY();
+        signed short getPositionX();
+        signed short getPositionY();
+
+        int         setOrigin();            // set the origin
+
 };
 
 // Default instantiation

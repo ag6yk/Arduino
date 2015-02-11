@@ -37,7 +37,13 @@
 // Constructor
 Compass::Compass()
 {
-  // Placeholder
+    // Initialize private variables
+    _i2cAddress = 0;
+    _cVectorX = 0;
+    _cVectorY = 0;
+    _cVectorZ = 0;
+    _cCompassHeading = 0;
+
 }
 
 // Specialized initialization
@@ -170,6 +176,42 @@ int Compass::ReadXYZ(MAG_DATA* pMagData)
     pMagData->zLSB = Wire.read();
 
     return(0);
+}
+
+// Process the compass data
+int Compass::ProcessCompassData()
+{
+    // Place holder
+    return 0;
+}
+
+// Compute the compass heading from the vector data
+int Compass::ComputeCompassHeading(MAG_DATA *m)
+{
+    // Placeholder
+    return 0;
+}
+
+// Accessors
+
+signed short Compass::getVectorX()
+{
+    return _cVectorX;
+}
+
+signed short Compass::getVectorY()
+{
+    return _cVectorY;
+}
+
+signed short Compass::getVectorZ()
+{
+    return _cVectorZ;
+}
+
+signed short Compass::getCompassHeading()
+{
+    return _cCompassHeading;
 }
 
 // Destructor

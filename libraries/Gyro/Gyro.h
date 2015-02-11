@@ -195,6 +195,11 @@ class Gyro : public Sensor
         unsigned char   	_i2cAddress;
         struct GYRO_DATA	_gBuf[32];
         int					_gfifoCount;
+        signed short        _gdRoll;    // Rotation rate around the X axis
+        signed short        _gdPitch;   // Rotation rate around the Y axis
+        signed short        _gdYaw;     // Rotation rate around the Z axis
+        signed short        _gHeading;  // Heading relative to the robot front
+        signed short        _gPitch;    // Pitch relative to robot level
 
     public:
         Gyro();                     	// Constructor
@@ -203,7 +208,14 @@ class Gyro : public Sensor
         boolean readID();           	// Read device ID (verify bus)
         int available();            	// Returns FIFO count or 0 for not ready
         int ReadGyroData(GYRO_DATA *g);	// Block read the data into the buffer
-        int AvgFilter(int* Data);   	// Signal averaging
+        int ComputeHeading(GYRO_DATA *g);   // Compute heading from vectors
+        int ComputePitch(GYRO_DATA *g);     // Compute pitch from vectors
+        int ProcessGyroData();          // Process pitch and yaw rates
+        signed short getHeading();      // accessors
+        signed short getPitch();
+        signed short getdRoll();
+        signed short getdPitch();
+        signed short getdYaw();
         
 };
 

@@ -112,13 +112,24 @@ struct MAG_DATA
 class Compass : public Sensor
 {
     private:
-        unsigned char _i2cAddress;
+        unsigned char   _i2cAddress;
+        signed short    _cVectorX;          // raw magnet data
+        signed short    _cVectorY;
+        signed short    _cVectorZ;
+        signed short    _cCompassHeading;
+
     public:
         Compass();                          // Constructor
         ~Compass();                         // Destructor
         int begin();                        // specialized initialization
         boolean readID();                   // Read device ID (verify bus)
         int ReadXYZ(MAG_DATA* pMagData);    // block read the output data
+        int ProcessCompassData();           // process compass data
+        int ComputeCompassHeading(MAG_DATA *m); // Compute heading from compass
+        signed short getVectorX();          // accessors
+        signed short getVectorY();
+        signed short getVectorZ();
+        signed short getCompassHeading();
 };
 
 // Default instantiation

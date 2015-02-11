@@ -36,7 +36,34 @@
 // Constructor
 Accel::Accel()
 {
-  // Placeholder 
+    // Locals
+    int i;
+    // Initialize the private variables
+    _i2cAddress = 0;
+
+    for(i = 0; i < 32; i++)
+    {
+        _aBuff[i].xLSB = 0;
+        _aBuff[i].xMSB = 0;
+        _aBuff[i].yLSB = 0;
+        _aBuff[i].yMSB = 0;
+        _aBuff[i].zLSB = 0;
+        _aBuff[i].zMSB = 0;
+    }
+
+    _afifoCount = 0;
+    _aXComputing.tn = 0;
+    _aXComputing.tn1 = 0;
+    _aXComputing.tn2 = 0;
+    _aYComputing.tn = 0;
+    _aYComputing.tn1 = 0;
+    _aYComputing.tn2 = 0;
+    _accelerationX = 0;
+    _velocityX = 0;
+    _positionX = 0;
+    _accelerationY = 0;
+    _velocityY = 0;
+    _positionY = 0;
 }
 
 // Specific initialization
@@ -370,6 +397,9 @@ int Accel::ComputeVXoft(NUM_BUFFER *n, int* Value)
 	// Locals
 
 	// Check if we have two samples, we can compute velocity
+
+    // Placeholder
+    return 0;
 }
 
 // Process X and Y axes and load the output buffer
@@ -378,6 +408,45 @@ int Accel::ProcessAccelData()
 	return 0;
 }
 
+// Accessors
+
+signed short Accel::getAccelerationX()
+{
+    return _accelerationX;
+}
+
+signed short Accel::getAccelerationY()
+{
+    return _accelerationY;
+}
+
+signed short Accel::getVelocityX()
+{
+    return _velocityX;
+}
+
+signed short Accel::getVelocityY()
+{
+    return _velocityY;
+}
+
+signed short Accel::getPositionX()
+{
+    return _positionX;
+}
+
+signed short Accel::getPositionY()
+{
+    return _positionY;
+}
+
+// Reset the current processing
+int Accel::setOrigin()
+{
+    // TODO
+
+    return 0;
+}
 
 // Destructor
 Accel::~Accel()

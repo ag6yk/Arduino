@@ -68,6 +68,8 @@ class Baro : public Sensor
     private:
         unsigned char _i2cAddress;
         unsigned int  _eeCoefficients[11];
+        signed short _bPressure;
+        signed short _bTemperature;
     public:
         Baro();                             // Constructor
         ~Baro();                            // Destructor
@@ -75,7 +77,11 @@ class Baro : public Sensor
         int begin();                        // Specialized initialization
         int ReadPressure();
         int ReadTemperature();
-        int AvgFilter(int *Data);           // signal averaging
+        int ProcessPressureData();          // measure and report the
+                                            // atmospheric pressure
+        int ProcessTemperatureData();       // measure and report the temperature
+        signed short getPressure();         // accessors
+        signed short getTemperature();
 };
 
 // Default instantiation
