@@ -66,6 +66,78 @@ boolean Sensor::waitForI2CResponse(byte nBytes)
 	return false;
 }
 
+// Perform a right shift on a signed 32-bit value
+signed long Sensor::rsh_sgn32(signed long oldVal, int nbits)
+{
+    // Locals
+    unsigned long  signTest;
+    unsigned long  absVal;
+    signed long    newVal;
+
+    // Check the sign of the input value
+    signTest = (unsigned long)oldVal;
+    absVal = (unsigned long)oldVal;
+
+    // Correct for sign if required
+    if(signTest & 0x80000000)
+    {
+        absVal = absVal - 1;
+        absVal = ~absVal;
+    }
+
+    // Compute the shift
+    absVal >>= nbits;
+
+    // Restore sign if required
+    if(signTest & 0x80000000)
+    {
+        absVal = ~absVal;
+        absVal++;
+    }
+
+    // Cast back to signed value
+    newVal = (signed long)absVal;
+
+    return(newVal);
+
+}
+
+// Perform a left shift on a signed 16-bit value
+signed long Sensor::lsh_sgn32(signed long oldVal, int nbits)
+{
+    // Locals
+    unsigned long  signTest;
+    unsigned long  absVal;
+    signed long    newVal;
+
+    // Check the sign of the input value
+    signTest = (unsigned long)oldVal;
+    absVal = (unsigned long)oldVal;
+
+    // Correct for sign if required
+    if(signTest & 0x80000000)
+    {
+        absVal = absVal - 1;
+        absVal = ~absVal;
+    }
+
+    // Compute the shift
+    absVal <<= nbits;
+
+    // Restore sign if required
+    if(signTest & 0x80000000)
+    {
+        absVal = ~absVal;
+        absVal++;
+    }
+
+    // Cast back to signed value
+    newVal = (signed long)absVal;
+
+    return(newVal);
+}
+
+
 // Perform a right shift on a signed 16-bit value
 signed short Sensor::rsh_sgn16(signed short oldVal, int nbits)
 {
@@ -230,24 +302,35 @@ signed short Sensor::AvgFilter(signed short* Data)
 {
   // Average 8 signals together
   int i;
+  signed long lSum = 0;
+  signed long lTemp;
   signed short Sum = 0;
   signed short filteredValue;
 
   unsigned short AbsSum;
 
+  // Sum the values together
+  // Use a 32-bit value to prevent overflow
   for(i = 0; i < 8; i++)
   {
+      // Cast the next sample as a long
+      Sum = *Data++;
+      lTemp = (signed long)Sum;
 	  // Add the next sample to the accumulator
-	  Sum = Sum + *Data++;
+      lSum = lSum + lTemp;
   }
 
   // Divide by 8 using shifts
-  filteredValue = rsh_sgn16(Sum, 3);
+  lTemp = rsh_sgn32(lSum, 3);
+
+  // Truncate back to short
+  filteredValue = (signed short)lTemp;
 
   return filteredValue;
 }
 
-// Compute the trapezoidal integral for the input region
+// Compute the integral for the input region
+// using the Trapezoidal approximation
 signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
 {
 	// Locals
@@ -255,6 +338,7 @@ signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
 	signed short	temp1;
 	signed short	temp2;
 	signed short	temp3;
+	signed short    temp4;
 
 	// Estimate the integral over the region using the
 	// trapezoidal rule:
@@ -263,18 +347,20 @@ signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
 	// Horner's rule can be used to convert the multiplication
 	// of a fraction (i.e. division) into a series of shifts and
 	// additions.
-	// for deltaT = 1/100: x/100 ~= (x >> 7) + (x >> 9) with 2.3% error
-	//            = 1/200: x/200 ~= (x >> 6) + (x >> 8) with 5% error
-	// Parameterize these values since the form is identical
+	// Intgr(t) ~= deltaTP * (f(tn) - f(tn-1))
+	// deltaTP (delta T prime) is deltaT / 2
+	// Use a three-polynomial Horner expression for the division
+	// x/H ~= (x >> FACTOR1) + (x >> FACTOR2) + (x >> FACTOR3)
 
-	// Compute the first term  f(tn) - f(tn-1)/2
+	// Compute the difference term
 	temp1 = Data1 - Data0;
-	temp2 = rsh_sgn16(temp1, 1);
 
-	// Multiply by the time interval and compute the integral
-	temp1 = rsh_sgn16(temp2, INTEGRATE_FACTOR1);
-	temp3 = rsh_sgn16(temp2, INTEGRATE_FACTOR2);
-	newVal = temp1 + temp3;
+	// Compute the delta T prime Horner polynomial on the difference term,
+	// which is the integral
+	temp2 = rsh_sgn16(temp1, INTEGRATE_FACTOR1);
+	temp3 = rsh_sgn16(temp1, INTEGRATE_FACTOR2);
+	temp4 = rsh_sgn16(temp1, INTEGRATE_FACTOR3);
+	newVal = temp2 + temp3 + temp4;
 
 	return(newVal);
 

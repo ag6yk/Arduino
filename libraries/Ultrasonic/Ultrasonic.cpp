@@ -50,7 +50,7 @@ Ultrasonic::Ultrasonic(int Trigger, int Echo)
 unsigned char Ultrasonic::ReadRange()
 {
 	// Define locals
-	unsigned int Tprop;
+	unsigned long Tprop;
 	unsigned char Range;
 
 	// Pulse the Ping signal
@@ -62,6 +62,7 @@ unsigned char Ultrasonic::ReadRange()
 	Tprop = pulseIn(_echo, HIGH, 1000);
 	// Convert to inches (ref: www.robot-electronics.co.uk)
 	Tprop = Tprop / 148;
+	// Truncate - dynamic range is 248 to 120 so byte is OK
 	Range = (unsigned char)Tprop;
 
     // return result

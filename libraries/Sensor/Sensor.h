@@ -30,18 +30,36 @@
 // DEFINES
 ////////////////////////////////////////////////////////////////////////////////
 
-// 200 Hz update rate
-#define	UPDATE_200HZ
+// 100 Hz update rate
+#define	DELTATP_200HZ
 
 // Trapezoidal integration
 // Define the Horner coefficients for the intervals
-#ifdef	UPDATE_100HZ
+// 50 Hz Update rate - delta T prime of 100 Hz
+#ifdef	DELTATP_100HZ
 #define INTEGRATE_FACTOR1	7
 #define	INTEGRATE_FACTOR2	9
+#define INTEGRATE_FACTOR3   12
 #else
-#ifdef	UPDATE_200HZ
+// 100 Hz Update rate - delta T prime of 200 Hz
+#ifdef	DELTATP_200HZ
 #define INTEGRATE_FACTOR1	6
 #define INTEGRATE_FACTOR2	8
+#define INTEGRATE_FACTOR3   11
+#else
+// 200 Hz Update rate - delta T prime of 400 Hz
+#ifdef  DELTATP_400HZ
+#define INTEGRATE_FACTOR1   9
+#define INTEGRATE_FACTOR2   11
+#define INTEGRATE_FACTOR3   14
+#else
+// 400 Hz Update rate - delta T prime of 800 Hz
+#ifdef  DELTATP_800HZ
+#define INTEGRATE_FACTOR1   10
+#define INTEGRATE_FACTOR2   12
+#define INTEGRATE_FACTOR3   15
+#endif
+#endif
 #endif
 #endif
 
@@ -70,19 +88,26 @@ class Sensor
 {
 
   private:
-    int _samples[8];                        								// average 8 samples
+    int _samples[8];                    // average 8 samples
   
   public:
-    Sensor();
-    ~Sensor();
-    boolean waitForI2CResponse(byte nBytes);								// Returns true if device responds OK I2C only
-    signed short rsh_sgn16(signed short oldVal, int nbits);					// signed shifts - allows fast fixed math with signed values
+    Sensor();                           // constructor
+    ~Sensor();                          // destructor
+    // Returns true if device responds OK I2C only
+    boolean waitForI2CResponse(byte nBytes);
+    // signed shifts - allows fast integer math with signed values
+    signed long rsh_sgn32(signed long oldVal, int nbits);
+    signed long lsh_sgn32(signed long oldVal, int nbits);
+    signed short rsh_sgn16(signed short oldVal, int nbits);
     signed short lsh_sgn16(signed short oldVal, int nbits);
     signed char rsh_sgn8(signed char oldVal, int nbits);
     signed char lsh_sgn8(signed char oldVal, int nbits);
-    signed short DigFilter(signed short* Data0, signed short* Data1);		// single pole low pass filter
-    signed short AvgFilter(signed short* Data);      						// Signal averaging
-    signed short trapIntegral(signed short Data0, signed short Data1);		// for the region and fixed interval
+    // single pole low pass filter
+    signed short DigFilter(signed short* Data0, signed short* Data1);
+    // 8-sample signal averaging filter
+    signed short AvgFilter(signed short* Data);
+    // Compute the integral over the given region using the Trapezoidal approx.
+    signed short trapIntegral(signed short Data0, signed short Data1);
   
 };
 #endif
