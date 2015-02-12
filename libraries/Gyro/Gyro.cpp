@@ -160,10 +160,6 @@ int Gyro::begin(void)
   // Since INT1 is not used, use default for 
   // thresholds and duration
 
-  // NICE-TO-HAVE
-  // Run self-test
-
-
   // Return successful config
   return 0;
 
@@ -257,7 +253,13 @@ int Gyro::ReadGyroData(GYRO_DATA* pGData)
 // Process rate data
 int Gyro::ProcessGyroData()
 {
-    // placeholder
+    // Check for availability
+    // Read the FIFO
+    // Filter the data
+    // Compute the Heading
+    // Compute the Pitch
+    // Update the internal buffer
+
     return 0;
 }
 

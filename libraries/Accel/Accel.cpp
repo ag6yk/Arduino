@@ -140,10 +140,11 @@ int Accel::begin(void)
   i2cFlowCount++;
   // BW_RATE - Default 100Hz, normal operation
   // Update - increase BW to 200Hz initially
-  // 0b00001011
+  // Update - increase BW to 800Hz initialiy
+  // 0b00001101
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_BW_RATE));
-  Wire.write(byte(0x0B));
+  Wire.write(byte(0x0D));
   i2cStatus = Wire.endTransmission();
   if(i2cStatus != 0)
   {
@@ -398,6 +399,8 @@ int Accel::ComputeVXoft(NUM_BUFFER *n, int* Value)
 
 	// Check if we have two samples, we can compute velocity
 
+    // Check if we have three samples, we can compute position
+
     // Placeholder
     return 0;
 }
@@ -405,6 +408,12 @@ int Accel::ComputeVXoft(NUM_BUFFER *n, int* Value)
 // Process X and Y axes and load the output buffer
 int Accel::ProcessAccelData()
 {
+    // Check for availability
+    // Read the FIFO
+    // Filter the data
+    // Compute the velocity
+    // Compute the position
+    // Update the internal buffer
 	return 0;
 }
 
@@ -444,6 +453,11 @@ signed short Accel::getPositionY()
 int Accel::setOrigin()
 {
     // TODO
+
+    // Flush the buffers
+    // Flush the filters
+    // Read the FIFO
+    // Update the buffers
 
     return 0;
 }
