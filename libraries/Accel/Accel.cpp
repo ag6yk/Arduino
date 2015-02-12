@@ -355,7 +355,13 @@ int Accel::ReadXYZ(ACCEL_DATA* pAcData)
 {
 	// Locals
 	int i;
-	ACCEL_DATA* lpAcData = pAcData;
+
+	// Generate a local pointer to the nth element
+	// in the array for a count of n+1
+	// This will cause the 0th element to be the
+	// most recent data, the 1st element to be the
+	// next most recent, etc.
+	ACCEL_DATA* lpAcData = (pAcData + _afifoCount);
 
 	// Read the buffer
 	for(i = 0; i < _afifoCount; i++)
@@ -377,12 +383,33 @@ int Accel::ReadXYZ(ACCEL_DATA* pAcData)
 		lpAcData->yMSB = Wire.read();
 		lpAcData->zLSB = Wire.read();
 		lpAcData->zMSB = Wire.read();
-		// point to next element
-		lpAcData++;
+		// point to previous element
+		lpAcData--;
 	}
 
 	// Success
 	return 0;
+}
+
+// Filter the X data
+signed short Accel::FilterX(ACCEL_DATA *ax)
+{
+	// Locals
+	signed short	xArray[8];
+	unsigned char	xTrans[2];
+	unsigned short	xTemp;
+	int i;
+
+	// Extract and collect the X samples
+	for(i=0; i < 8; i++)
+	{
+		// Read the data parts
+		xTrans[0] = (unsigned char)ax->xMSB;
+		xTrans[1] = (unsigned char)ax->xLSB;
+		xTemp = xTrans[0] << 8
+		xArray[i] = (ax->xMSB << 8) +
+	}
+
 }
 
 // Compute velocity and position from sampled data
@@ -408,6 +435,38 @@ int Accel::ComputeVXoft(NUM_BUFFER *n, int* Value)
 // Process X and Y axes and load the output buffer
 int Accel::ProcessAccelData()
 {
+	// Locals
+	int fCount;
+	int failSafe;
+	int lStatus;
+	int i;
+
+	// Read the FIFO count. If the processor throughput
+	// is what we believe, there should be 8 samples in each of
+	// the FIFOs for the accelerometer. We need 8 samples or
+	// the math doesn't work
+	fCount = 0;
+	failSafe = 0;
+	while(fCount < 8)
+	{
+		failSafe++;
+		fCount = available();
+		// Load a timeout of at least 1 msec
+		if(failSafe > 10)
+		{
+			return -1;
+		}
+	}
+
+	// FIFO is ready, read 8 samples of data
+	lStatus = ReadXYZ(_aBuff);
+
+	// These samples were read in reverse order, i.e.
+	// _aBuff[0] is the most recent data
+	// So compute the signal average of the 8 most
+	// recent values
+
+
     // Check for availability
     // Read the FIFO
     // Filter the data

@@ -197,6 +197,11 @@ class Accel : public Sensor
         int available();				    // Returns fifo count or
         									// 0 for not ready
         int ReadXYZ(ACCEL_DATA* pAcData);   // Block read of data
+
+        // Signal average the acceleration data
+        signed short FilterX(ACCEL_DATA *ax);
+        signed short FilterY(ACCEL_DATA *ay);
+
         // Compute velocity and position from sampled data
         int ComputeVXoft(NUM_BUFFER *n, int* Value);
         									// from sampled data
