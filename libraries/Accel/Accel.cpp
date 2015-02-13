@@ -39,26 +39,32 @@ Accel::Accel()
     // Locals
     int i;
     // Initialize the private variables
-    _i2cAddress = 0;
+    _i2cAddress = 0;                        // i2c address
 
     for(i = 0; i < 32; i++)
     {
-        _aBuff[i].xLSB = 0;
-        _aBuff[i].xMSB = 0;
-        _aBuff[i].yLSB = 0;
-        _aBuff[i].yMSB = 0;
-        _aBuff[i].zLSB = 0;
-        _aBuff[i].zMSB = 0;
+        _aXvector[i] = 0;                   // raw acceleration data
+        _aYvector[i] = 0;
+        _aZvector[i] = 0;
     }
 
-    _afifoCount = 0;
-    _aXComputing.tn = 0;
-    _aXComputing.tn1 = 0;
-    _aXComputing.tn2 = 0;
-    _aYComputing.tn = 0;
-    _aYComputing.tn1 = 0;
-    _aYComputing.tn2 = 0;
-    _accelerationX = 0;
+    _afifoCount = 0;                        // FIFO depth
+    _aVvalid = false;                       // computation eanble flags
+    _aPvalid = false;
+    _aSampleCount = 0;                      // computaiton sample count
+    _aVComputingX.t0 = 0;                   // computation accumulators
+    _aVComputingX.tn = 0;
+    _aVComputingX.tn1 = 0;
+    _aPComputingX.t0 = 0;
+    _aPComputingX.tn = 0;
+    _aPComputingX.tn1 = 0;
+    _aVComputingY.t0 = 0;
+    _aVComputingY.tn = 0;
+    _aVComputingY.tn1 = 0;
+    _aPComputingY.t0 = 0;
+    _aPComputingY.tn = 0;
+    _aPComputingY.tn1 = 0;
+    _accelerationX = 0;                     // processed nav data
     _velocityX = 0;
     _positionX = 0;
     _accelerationY = 0;
@@ -140,7 +146,7 @@ int Accel::begin(void)
   i2cFlowCount++;
   // BW_RATE - Default 100Hz, normal operation
   // Update - increase BW to 200Hz initially
-  // Update - increase BW to 800Hz initialiy
+  // Update - increase BW to 800Hz initially
   // 0b00001101
   Wire.beginTransmission(_i2cAddress);
   Wire.write(byte(A_BW_RATE));
@@ -351,84 +357,89 @@ accelAvailableError:
 
 // Block read the acceleration data
 // Assumes data availability has been checked!
-int Accel::ReadXYZ(ACCEL_DATA* pAcData)
+int Accel::ReadXYZ()
 {
 	// Locals
 	int i;
+	unsigned char lsbTemp;
+	unsigned char msbTemp;
+	unsigned short temp;
 
-	// Generate a local pointer to the nth element
-	// in the array for a count of n+1
-	// This will cause the 0th element to be the
-	// most recent data, the 1st element to be the
-	// next most recent, etc.
-	ACCEL_DATA* lpAcData = (pAcData + _afifoCount);
-
-	// Read the buffer
-	for(i = 0; i < _afifoCount; i++)
+	// Compute the final index based on the fifo count
+	// This will cause the 0th slement of each vector
+	// array to be the most recent data, the 1st element
+	// to be the next most recent, etc.
+	for(i = (_afifoCount); i > 0; i--)
 	{
 		// Point to the X FIFO
 		Wire.beginTransmission(_i2cAddress);
 		Wire.write(byte(A_DATA_X0));
 		Wire.endTransmission();
 		// Block read the first element
-		Wire.requestFrom(_i2cAddress, sizeof(ACCEL_DATA));
-		if(waitForI2CResponse(sizeof(ACCEL_DATA)) == false)
+		Wire.requestFrom(_i2cAddress, sizeof(ACCEL_DATA_BLOCK));
+		if(waitForI2CResponse(sizeof(ACCEL_DATA_BLOCK)) == false)
 		{
 			return -1;
 		}
-		// Write to member buffer
-		lpAcData->xLSB = Wire.read();
-		lpAcData->xMSB = Wire.read();
-		lpAcData->yLSB = Wire.read();
-		lpAcData->yMSB = Wire.read();
-		lpAcData->zLSB = Wire.read();
-		lpAcData->zMSB = Wire.read();
-		// point to previous element
-		lpAcData--;
+		// One block of data is read from the I2C
+		// format for further processing
+
+		// Read from fifo LSB/MSB order
+		lsbTemp = Wire.read();
+		msbTemp = Wire.read();
+		// Convert to a 16-bit value
+		temp = (unsigned short)((msbTemp << 8) + lsbTemp);
+		// Convert and store as a signed value
+		_aXvector[i-1] = (signed short)temp;
+
+		// Read and process Y-axis information
+        lsbTemp = Wire.read();
+        msbTemp = Wire.read();
+        temp = (unsigned short)((msbTemp << 8) + lsbTemp);
+        _aYvector[i-1] = (signed short)temp;
+
+        // Read and process Z-axis information
+        // not used but need to read to exploit h/w autoincrement
+        lsbTemp = Wire.read();
+        msbTemp = Wire.read();
+        temp = (unsigned short)((msbTemp << 8) + lsbTemp);
+        _aYvector[i-1] = (signed short)temp;
 	}
 
 	// Success
 	return 0;
 }
 
-// Filter the X data
-signed short Accel::FilterX(ACCEL_DATA *ax)
+// Compute the velocity from the sampled acceleration data
+// using numerical integration
+int Accel::ComputeVoft(NUM_BUFFER *n, signed short* computedValue)
 {
-	// Locals
-	signed short	xArray[8];
-	unsigned char	xTrans[2];
-	unsigned short	xTemp;
-	int i;
+    // Locals
+    signed short newVelocity;
 
-	// Extract and collect the X samples
-	for(i=0; i < 8; i++)
-	{
-		// Read the data parts
-		xTrans[0] = (unsigned char)ax->xMSB;
-		xTrans[1] = (unsigned char)ax->xLSB;
-		xTemp = xTrans[0] << 8
-		xArray[i] = (ax->xMSB << 8) +
-	}
+    // Compute the new integral
+    newVelocity = trapIntegral(n->tn, n->tn1);
+    // Add to the accumulator
+    n->t0 = n->t0 + newVelocity;
+    // Return the new value
+    *computedValue = (signed short)n->t0;
+    return 0;
 
 }
 
-// Compute velocity and position from sampled data
-// Use the Trapezoidal rule to approximate integrals:
-// Assume constant sample rate del_t
-// let f(t) = A(t) -> acceleration sample from time t
-// V(t) = intr(A(t)) ~= (del_t) * (A(t) - A(t-1))/2
-// X(t) = intr(V(t)) ~= (del_t) * (V(t) - V(t-1))/2
-// Position requires at least 3 samples to compute
-// Velocity require at least two samples to compute
-int Accel::ComputeVXoft(NUM_BUFFER *n, int* Value)
+// Compute the position from the sampled acceleration data
+// using numerical integration
+int Accel::ComputeXoft(NUM_BUFFER *n, signed short* computedValue)
 {
-	// Locals
+    // Locals
+    signed short newPosition;
 
-	// Check if we have two samples, we can compute velocity
-
-    // Check if we have three samples, we can compute position
-
-    // Placeholder
+    // Compute the new integral
+    newPosition = trapIntegral(n->tn, n->tn1);
+    // Add to the accumulator
+    n->t0 = n->t0 + newPosition;
+    // Return the new value
+    *computedValue = (signed short)n->t0;
     return 0;
 }
 
@@ -459,20 +470,60 @@ int Accel::ProcessAccelData()
 	}
 
 	// FIFO is ready, read 8 samples of data
-	lStatus = ReadXYZ(_aBuff);
+	lStatus = ReadXYZ();
 
-	// These samples were read in reverse order, i.e.
-	// _aBuff[0] is the most recent data
-	// So compute the signal average of the 8 most
-	// recent values
+	// Increment the sample count
+	_aSampleCount++;
+	// Update the validity flags
+	if(_aSampleCount > 2)
+	{
+	    _aVvalid = true;
+	}
+	if(_aSampleCount > 3)
+	{
+	    _aPvalid = true;
+	}
 
+	// Samples are arranged in time-descending order,
+	// i.e. 0th element is the most recent
+	// Perform signal averaging on the 8 most recent values
+    // Skip Z axis for now
+	_accelerationX = AvgFilter(_aXvector);
+	_accelerationY = AvgFilter(_aYvector);
 
-    // Check for availability
-    // Read the FIFO
-    // Filter the data
-    // Compute the velocity
-    // Compute the position
-    // Update the internal buffer
+	// Update the velocity numerical buffers
+	_aVComputingX.tn1 = _aVComputingX.tn;
+	_aVComputingX.tn = _accelerationX;
+
+    _aVComputingY.tn1 = _aVComputingY.tn;
+    _aVComputingY.tn = _accelerationY;
+
+	// Compute the velocity from the acceleration data
+    if(_aVvalid)
+    {
+        lStatus = ComputeVoft(&_aVComputingX, &_velocityX);
+        if(lStatus == 0)
+        {
+            // Update the position numerical buffers
+            _aPComputingX.tn1 = _aPComputingX.tn;
+            _aPComputingX.tn = _velocityX;
+        }
+        lStatus = ComputeVoft(&_aVComputingY, &_velocityY);
+        if(lStatus == 0)
+        {
+            // Update the position numerical buffers
+            _aPComputingY.tn1 = _aPComputingY.tn;
+            _aPComputingY.tn = _velocityY;
+        }
+    }
+
+	// Compute the position from the acceleration data
+    if(_aPvalid)
+    {
+        lStatus = ComputeXoft(&_aPComputingX, &_positionX);
+        lStatus = ComputeXoft(&_aPComputingY, &_positionY);
+    }
+
 	return 0;
 }
 
@@ -508,15 +559,46 @@ signed short Accel::getPositionY()
     return _positionY;
 }
 
+// Flush the accelerometer FIFOs
+int Accel::flush()
+{
+    // locals
+    int lStatus;
+
+    // Set up the fifo count
+    lStatus = available();
+    // Read the contents of the fifo
+    lStatus = ReadXYZ();
+
+    return 0;
+}
+
 // Reset the current processing
 int Accel::setOrigin()
 {
-    // TODO
-
-    // Flush the buffers
-    // Flush the filters
-    // Read the FIFO
-    // Update the buffers
+    // Reset the velocity and position accumulators
+    _aVComputingX.t0 = 0;
+    _aVComputingX.tn = 0;
+    _aVComputingX.tn1 = 0;
+    _aPComputingX.t0 = 0;
+    _aPComputingX.tn = 0;
+    _aPComputingX.tn1 = 0;
+    _aVComputingY.t0 = 0;
+    _aVComputingY.tn = 0;
+    _aVComputingY.tn1 = 0;
+    _aPComputingY.t0 = 0;
+    _aPComputingY.tn = 0;
+    _aPComputingY.tn1 = 0;
+    _velocityX = 0;
+    _positionX = 0;
+    _velocityY = 0;
+    _positionY = 0;
+    // Force a complete refresh of the computing buffers
+    _aVvalid = false;
+    _aPvalid = false;
+    _aSampleCount = 0;
+    // Refresh the fifos
+    flush();
 
     return 0;
 }

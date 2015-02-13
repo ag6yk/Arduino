@@ -34,7 +34,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 // Define a block read element
-struct ACCEL_DATA
+struct ACCEL_DATA_BLOCK
 {
 	unsigned char	xLSB;					// least significant byte X
 	unsigned char	xMSB;					// most significant byte X
@@ -178,16 +178,25 @@ class Accel : public Sensor
 {
     private:
         unsigned char 		_i2cAddress;
-        struct ACCEL_DATA	_aBuff[32];
+        signed short        _aXvector[32];
+        signed short        _aYvector[32];
+        signed short        _aZvector[32];
         int					_afifoCount;
-        NUM_BUFFER			_aXComputing;
-        NUM_BUFFER			_aYComputing;
+        boolean             _aVvalid;
+        boolean             _aPvalid;
+        int                 _aSampleCount;
+        NUM_BUFFER			_aVComputingX;
+        NUM_BUFFER          _aPComputingX;
+        NUM_BUFFER          _aVComputingY;
+        NUM_BUFFER			_aPComputingY;
         signed short		_accelerationX;
         signed short		_velocityX;
         signed short		_positionX;
         signed short		_accelerationY;
         signed short		_velocityY;
         signed short		_positionY;
+
+        int                 flush();        // flush the h/w fifos
 
     public:
         Accel();                            // Constructor
@@ -196,16 +205,15 @@ class Accel : public Sensor
         boolean readID();                   // Read device ID (verify bus)
         int available();				    // Returns fifo count or
         									// 0 for not ready
-        int ReadXYZ(ACCEL_DATA* pAcData);   // Block read of data
+        int ReadXYZ();                      // Block read of data
 
-        // Signal average the acceleration data
-        signed short FilterX(ACCEL_DATA *ax);
-        signed short FilterY(ACCEL_DATA *ay);
+        // Compute velocity from sampled data
+        int ComputeVoft(NUM_BUFFER *n, signed short* computedValue);
+        // Compute position from sampled data
+        int ComputeXoft(NUM_BUFFER *n, signed short* computedValue);
 
-        // Compute velocity and position from sampled data
-        int ComputeVXoft(NUM_BUFFER *n, int* Value);
-        									// from sampled data
-        int ProcessAccelData();				// Process X and Y axes
+        // Process acceleration data from sensor
+        int ProcessAccelData();
         signed short getAccelerationX();    // accessors
         signed short getAccelerationY();
         signed short getVelocityX();

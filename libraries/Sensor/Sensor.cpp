@@ -331,6 +331,10 @@ signed short Sensor::AvgFilter(signed short* Data)
 
 // Compute the integral for the input region
 // using the Trapezoidal approximation
+// TODO: Evaluate Simpson's rule
+// I(a,b) ~= (b-a)/6 * [f(a) + 4*(f(a+b/2) + f(b)]
+// TODO: Evaluate Simpson's 3/8 rule:
+// I(a,b) ~= (b-a)/8 * [f(a) + 3*f(2a+b/3) + 3*f(a+2b/3) + f(b)]
 signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
 {
 	// Locals
@@ -342,24 +346,29 @@ signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
 
 	// Estimate the integral over the region using the
 	// trapezoidal rule:
-	// Intgr(t) ~= deltaT * [(f(tn) - f(tn-1))/2]
+	// I(a,b) ~= (b-a) * [f(b)+f(a)/2]
+	//        ~= ((b-a)/2)) * [f(a) + f(b)]
+	// where a and b are sample points on the curve, i.e. tn-1 and tn
+	// Let deltaT = tn - tn-1
+	// I(tn-1,t) ~= deltaT * [(f(tn) + f(tn-1))/2]
 	// deltaT is fixed in this application, therefore
 	// Horner's rule can be used to convert the multiplication
 	// of a fraction (i.e. division) into a series of shifts and
 	// additions.
-	// Intgr(t) ~= deltaTP * (f(tn) - f(tn-1))
+	// I(tn-1, t) ~= deltaTP * (f(tn-1) + f(tn))
 	// deltaTP (delta T prime) is deltaT / 2
-	// Use a three-polynomial Horner expression for the division
+	// Use a three-term Horner polynomial for the division:
 	// x/H ~= (x >> FACTOR1) + (x >> FACTOR2) + (x >> FACTOR3)
+	// Depending on the update rate parameterize FACTORx
 
-	// Compute the difference term
-	temp1 = Data1 - Data0;
+	// Compute the accumulator term f(tn-1) + f(t)
+	temp1 = Data1 + Data0;
 
-	// Compute the delta T prime Horner polynomial on the difference term,
-	// which is the integral
+	// Compute the delta T prime Horner polynomial on the accumulator term
 	temp2 = rsh_sgn16(temp1, INTEGRATE_FACTOR1);
 	temp3 = rsh_sgn16(temp1, INTEGRATE_FACTOR2);
 	temp4 = rsh_sgn16(temp1, INTEGRATE_FACTOR3);
+	// Compute the sum to determine the final integral
 	newVal = temp2 + temp3 + temp4;
 
 	return(newVal);

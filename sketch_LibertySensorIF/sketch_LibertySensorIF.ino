@@ -39,6 +39,9 @@
 // DEFINITIONS
 ///////////////////////////////////////////////////////////////////////////////
 
+// Uncomment to test Arduino without the RobotRIO
+#define BENCH_TEST  1
+
 //////////////////////////
 // Arduino Pin definitions
 //////////////////////////
@@ -120,7 +123,11 @@ int             BaroStatus;
 // Sample timing variables
 unsigned long   previousMillis;
 unsigned long   currentMillis;
+unsigned long   eTime;                      // elapsed time in ms
 unsigned long   interval = 10;              // 10 ms update rate
+unsigned long   debug_interval = 2000;      // 2 second display rate
+unsigned long   previousDisplayMillis;
+unsigned long   deTime;                     // for debug display
 
 
 
@@ -185,9 +192,11 @@ void setup(void)
     
     // Preset the SPI buffer 
     SPDR = STS_NAV_DATA_NREADY;
-  
+
+#if BENCH_TEST
     Serial.println("SPI configured");
     delay(500);
+#endif
   
     // Configure the IMU
  
@@ -214,9 +223,10 @@ void setup(void)
 //  Serial.println(BaroStatus, DEC);
 
 
-    // Snapshot the timer, initialize the interval timer
+    // Snapshot the timer, initialize the update and display timers
     currentMillis = millis();
     previousMillis = currentMillis;
+    previousDisplayMillis = currentMillis;
   
     // Enable the SPI interrupt
 //  SPI.attachInterrupt();
@@ -310,13 +320,16 @@ void loop(void)
     // Always check if the nav data should be reset
     if(spiSetOrigin == true)
     {
-        // TODO: Set the origin point
+        imuAccel.setOrigin();
+        // imuGyro.setOrigin();
         spiSetOrigin = false;
     }
     
     // See if it is time to sample, every 10 ms
     currentMillis = millis();
-    if((currentMillis - previousMillis) >= interval)
+    eTime = currentMillis - previousMillis;
+    deTime = currentMillis - previousDisplayMillis;
+    if(eTime >= interval)
     {
         // Restart interval timer
         previousMillis = currentMillis;
@@ -326,6 +339,20 @@ void loop(void)
         // Process any new accelerometer data
         imuStatus = imuAccel.ProcessAccelData();
         // If no errors update the buffer
+#if BENCH_TEST
+        // Check if display update elapsed
+        if(deTime >= debug_interval)
+        {
+            // Display debug information
+            Serial.print("Acceleration X = "); Serial.println(imuAccel.getAccelerationX(), DEC);
+            Serial.print("Velocity X     = "); Serial.println(imuAccel.getVelocityX(), DEC);
+            Serial.print("Position X     = "); Serial.println(imuAccel.getPositionX(), DEC);
+            Serial.print("Acceleration Y = "); Serial.println(imuAccel.getAccelerationY(), DEC);
+            Serial.print("Velocity Y     = "); Serial.println(imuAccel.getVelocityY(), DEC);
+            Serial.print("Position Y     = "); Serial.println(imuAccel.getPositionY(), DEC);
+            delay(500);
+        }
+#else
         if(imuStatus == 0)
         {
             // Split the 16-bit values into 2 8-bit values
@@ -358,6 +385,9 @@ void loop(void)
             producer->Accel_Y_MSB = 0xFF;
             producer->Accel_Y_LSB = 0xFF;
         }
+#endif
+
+#if 0
         
         // Process any new Gyroscope data
         imuStatus = imuGyro.ProcessGyroData();
@@ -404,13 +434,30 @@ void loop(void)
   
         // Process any new temperature data
         imuStatus = imuBarometer.ProcessTemperatureData();
- 
+#endif
+
+#if BENCH_TEST
+        // Check to see if display interval has elapsed
+        if(deTime >= debug_interval)
+        {
+            Serial.print("Range 0 = "); Serial.println(rangeSensor0.ReadRange(), DEC);
+            Serial.print("Range 1 = "); Serial.println(rangeSensor0.ReadRange(), DEC);
+            Serial.print("Range 2 = "); Serial.println(rangeSensor0.ReadRange(), DEC);
+            Serial.print("Range 3 = "); Serial.println(rangeSensor0.ReadRange(), DEC);
+            Serial.print("Range 4 = "); Serial.println(rangeSensor0.ReadRange(), DEC);
+            delay(500);
+            
+            // Reset display timer
+            previousDisplayMillis = currentMillis;
+        }
+#else
         // Process Range sensors
         producer->Range_0 = rangeSensor0.ReadRange();
         producer->Range_1 = rangeSensor1.ReadRange();
         producer->Range_2 = rangeSensor2.ReadRange();
         producer->Range_3 = rangeSensor3.ReadRange();
         producer->Range_4 = rangeSensor4.ReadRange();
+#endif
   
         // Switch nav data buffers
         while(consumerBusy)

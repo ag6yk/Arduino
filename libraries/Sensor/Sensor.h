@@ -67,9 +67,9 @@
 // the integral of a data stream
 struct NUM_BUFFER
 {
-	signed short	tn2;	 					// Value at t(n-2)
 	signed short	tn1;						// Value at t(n-1)
 	signed short	tn;							// Value at t(n)
+	signed long     t0;                         // accumulated value
 };
 
 // Define the sensor status bitmap
@@ -88,7 +88,7 @@ class Sensor
 {
 
   private:
-    int _samples[8];                    // average 8 samples
+    signed short _samples[8];            // average 8 samples
   
   public:
     Sensor();                           // constructor
@@ -96,6 +96,7 @@ class Sensor
     // Returns true if device responds OK I2C only
     boolean waitForI2CResponse(byte nBytes);
     // signed shifts - allows fast integer math with signed values
+    // TODO: GCC may handle this in the compiler
     signed long rsh_sgn32(signed long oldVal, int nbits);
     signed long lsh_sgn32(signed long oldVal, int nbits);
     signed short rsh_sgn16(signed short oldVal, int nbits);
