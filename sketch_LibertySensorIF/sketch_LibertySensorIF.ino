@@ -40,7 +40,16 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 // Uncomment to test Arduino without the RobotRIO
-#define BENCH_TEST  1
+#define BENCH_TEST    1
+
+// Conditionally compile for each sensor
+#define ACCEL_ENABLE    1
+#define GYRO_ENABLE     0
+#define COMPASS_ENABLE  0
+#define BARO_ENABLE     0
+#define RANGES_ENABLE   0
+
+#define SPI_INT_ENABLE  0
 
 //////////////////////////
 // Arduino Pin definitions
@@ -125,7 +134,7 @@ unsigned long   previousMillis;
 unsigned long   currentMillis;
 unsigned long   eTime;                      // elapsed time in ms
 unsigned long   interval = 10;              // 10 ms update rate
-unsigned long   debug_interval = 2000;      // 2 second display rate
+unsigned long   debug_interval = 1000;      // 2 second display rate
 unsigned long   previousDisplayMillis;
 unsigned long   deTime;                     // for debug display
 
@@ -200,28 +209,34 @@ void setup(void)
   
     // Configure the IMU
  
+#if GRYO_ENABLE
     // Configure the gyroscope
-//  GyroStatus = imuGyro.begin();
-//  Serial.print("GyroStatus = ");
-//  Serial.println(GyroStatus, DEC);
-//  delay(500);
+    GyroStatus = imuGyro.begin();
+    Serial.print("GyroStatus = ");
+    Serial.println(GyroStatus, DEC);
+    delay(500);
+#endif
   
-  
+#if ACCEL_ENABLE
     // Configure the accelerometer
     AccelStatus = imuAccel.begin();
     Serial.print("AccelStatus = ");
     Serial.println(AccelStatus, DEC);
- 
-    // Configure the compass
-//  CompassStatus = imuCompass.begin();
-//  Serial.print("CompassStatus = ");
-//  Serial.println(CompassStatus, DEC);
-  
-    // Configure the barometer
-//  BaroStatus = imuBarometer.begin();
-//  Serial.print("BaroStatus = ");
-//  Serial.println(BaroStatus, DEC);
+#endif
 
+#if COMPASS_ENABLE
+    // Configure the compass
+    CompassStatus = imuCompass.begin();
+    Serial.print("CompassStatus = ");
+    Serial.println(CompassStatus, DEC);
+#endif
+
+#if BARO_ENABLE
+    // Configure the barometer
+    BaroStatus = imuBarometer.begin();
+    Serial.print("BaroStatus = ");
+    Serial.println(BaroStatus, DEC);
+#endif
 
     // Snapshot the timer, initialize the update and display timers
     currentMillis = millis();
@@ -229,11 +244,14 @@ void setup(void)
     previousDisplayMillis = currentMillis;
   
     // Enable the SPI interrupt
-//  SPI.attachInterrupt();
+#if SPI_INT_ENABLE
+    SPI.attachInterrupt();
+#endif
 
  
 }
 
+#if SPI_INT_ENABLE
 // SPI interrupt service routine
 ISR(SPI_STC_vect)
 {
@@ -308,7 +326,7 @@ ISR(SPI_STC_vect)
         }
     }// End switch    
 }
- 
+#endif 
 
 // Executive loop
 void loop(void)
@@ -321,7 +339,7 @@ void loop(void)
     if(spiSetOrigin == true)
     {
         imuAccel.setOrigin();
-        // imuGyro.setOrigin();
+        imuGyro.setOrigin();
         spiSetOrigin = false;
     }
     
@@ -335,7 +353,8 @@ void loop(void)
         previousMillis = currentMillis;
         
         // Process the IMU sensors
-  
+
+#if ACCEL_ENABLE  
         // Process any new accelerometer data
         imuStatus = imuAccel.ProcessAccelData();
         // If no errors update the buffer
@@ -387,10 +406,23 @@ void loop(void)
         }
 #endif
 
-#if 0
-        
+#endif
+
+#if GYRO_ENABLE
         // Process any new Gyroscope data
         imuStatus = imuGyro.ProcessGyroData();
+
+#if BENCH_TEST
+        // Check if display update elapsed
+        if(deTime >= debug_interval)
+        {
+            // Display debug information
+            Serial.print("Heading   = "); Serial.println(imuGyro.getHeading(), DEC);
+            Serial.print("Pitch     = "); Serial.println(imuGyro.getPitch(), DEC);
+            delay(500);
+        }
+#else
+        
         if(imuStatus == 0)
         {
             // Update the nav buffer
@@ -407,9 +439,26 @@ void loop(void)
             producer->Pitch_MSB = 0xFF;
             producer->Pitch_LSB = 0xFF;
         }
+#endif
+
+#endif
+        
+#if COMPASS_ENABLE
   
         // Process any new Compass data
         imuStatus = imuCompass.ProcessCompassData();
+        
+#if BENCH_TEST
+        // Check if display update elapsed
+        if(deTime >= debug_interval)
+        {
+            // Display debug information
+            Serial.print("Xdot = "); Serial.println(imuGyro.getVectorX(), DEC);
+            Serial.print("Ydot = "); Serial.println(imuGyro.getVectorY(), DEC);
+            delay(500);
+        }
+
+#else        
         if(imuStatus == 0)
         {
             // Update the nav buffer
@@ -426,7 +475,11 @@ void loop(void)
             producer->VectorY_MSB = 0xFF;
             producer->VectorY_LSB = 0xFF;
         }
+#endif
+
+#endif
   
+#if BARO_ENABLE
         // Barometer data will be used internally for future applications
         
         // Process any new pressure data
@@ -435,6 +488,8 @@ void loop(void)
         // Process any new temperature data
         imuStatus = imuBarometer.ProcessTemperatureData();
 #endif
+
+#if RANGES_ENABLE
 
 #if BENCH_TEST
         // Check to see if display interval has elapsed
@@ -457,6 +512,8 @@ void loop(void)
         producer->Range_2 = rangeSensor2.ReadRange();
         producer->Range_3 = rangeSensor3.ReadRange();
         producer->Range_4 = rangeSensor4.ReadRange();
+#endif
+
 #endif
   
         // Switch nav data buffers
