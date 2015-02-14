@@ -247,7 +247,7 @@ int Accel::begin(void)
   // Error processing
 accelBeginError:
     Serial.println("Accel::begin");
-    Serial.print("Count = "); Serial.print(i2cFlowCount);
+    Serial.print("Count  = "); Serial.println(i2cFlowCount);
     Serial.print("Status = "); Serial.println(i2cStatus);
     delay(500);
 	return i2cStatus;
@@ -298,7 +298,7 @@ boolean Accel::readID()
     if(ReadBack != A_I_BETTER_BE)
     {
     	i2cStatus = 99;
-        goto accelReadIDError;                // Device is active and valid
+        goto accelReadIDError;                // Device is active but invalid
     }
 
     // Process success
@@ -399,11 +399,10 @@ int Accel::ReadXYZ()
         _aYvector[i-1] = (signed short)temp;
 
         // Read and process Z-axis information
-        // not used but need to read to exploit h/w autoincrement
+        // not used but need to read since autoincrement feature put it
+        // into the buffer
         lsbTemp = Wire.read();
         msbTemp = Wire.read();
-        temp = (unsigned short)((msbTemp << 8) + lsbTemp);
-        _aYvector[i-1] = (signed short)temp;
 	}
 
 	// Success

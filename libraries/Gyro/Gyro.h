@@ -33,7 +33,7 @@
 // DEFINES
 ///////////////////////////////////////////////////////////////////////////////
 
-struct GYRO_DATA
+struct GYRO_DATA_BLOCK
 {
 	unsigned char	hLSB;						// heading
 	unsigned char	hMSB;
@@ -193,13 +193,21 @@ class Gyro : public Sensor
 {
     private:
         unsigned char   	_i2cAddress;
-        struct GYRO_DATA	_gBuf[32];
+        signed short        _gOyVector[32];
+        signed short        _gOpVector[32];
         int					_gfifoCount;
+        boolean             _gPitchValid;
+        boolean             _gYawValid;
+        int                 _gSampleCount;
+        NUM_BUFFER          _pitch;
+        NUM_BUFFER          _yaw;
         signed short        _gdRoll;    // Rotation rate around the X axis
         signed short        _gdPitch;   // Rotation rate around the Y axis
         signed short        _gdYaw;     // Rotation rate around the Z axis
         signed short        _gHeading;  // Heading relative to the robot front
         signed short        _gPitch;    // Pitch relative to robot level
+
+        int                 flush();    // clear all gyroscope fifos
 
     public:
         Gyro();                     	// Constructor
@@ -207,15 +215,20 @@ class Gyro : public Sensor
         int begin();                	// Specific initialization
         boolean readID();           	// Read device ID (verify bus)
         int available();            	// Returns FIFO count or 0 for not ready
-        int ReadGyroData(GYRO_DATA *g);	// Block read the data into the buffer
-        int ComputeHeading(GYRO_DATA *g);   // Compute heading from vectors
-        int ComputePitch(GYRO_DATA *g);     // Compute pitch from vectors
+        int ReadGyroData();	            // Block read of data
+
+        // Compute heading (integrate omega y)
+        int ComputeHeading(NUM_BUFFER *n, signed short *computedValue);
+        // Compute pitch (integrate omega p)
+        int ComputePitch(NUM_BUFFER *n, signed short *computedValue);
+
         int ProcessGyroData();          // Process pitch and yaw rates
         signed short getHeading();      // accessors
         signed short getPitch();
         signed short getdRoll();
         signed short getdPitch();
         signed short getdYaw();
+        int          setOrigin();       // reset computation buffers;
         
 };
 
