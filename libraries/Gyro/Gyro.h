@@ -33,6 +33,11 @@
 // DEFINES
 ///////////////////////////////////////////////////////////////////////////////
 
+// Define the requested support
+#define	YAW_ENABLE		1
+#define ROLL_ENABLE		0
+#define PITCH_ENABLE	0
+
 struct GYRO_DATA_BLOCK
 {
 	unsigned char	hLSB;						// heading
@@ -193,19 +198,21 @@ class Gyro : public Sensor
 {
     private:
         unsigned char   	_i2cAddress;
+        signed short        _gOrVector[32];
         signed short        _gOyVector[32];
         signed short        _gOpVector[32];
         int					_gfifoCount;
-        boolean             _gPitchValid;
-        boolean             _gYawValid;
+        boolean             _gDataValid;
         int                 _gSampleCount;
         NUM_BUFFER          _pitch;
         NUM_BUFFER          _yaw;
+        NUM_BUFFER			_roll;
         signed short        _gdRoll;    // Rotation rate around the X axis
         signed short        _gdPitch;   // Rotation rate around the Y axis
         signed short        _gdYaw;     // Rotation rate around the Z axis
         signed short        _gHeading;  // Heading relative to the robot front
         signed short        _gPitch;    // Pitch relative to robot level
+        signed short		_gRoll;		// Roll relative to robot level
 
         int                 flush();    // clear all gyroscope fifos
 
@@ -221,10 +228,13 @@ class Gyro : public Sensor
         int ComputeHeading(NUM_BUFFER *n, signed short *computedValue);
         // Compute pitch (integrate omega p)
         int ComputePitch(NUM_BUFFER *n, signed short *computedValue);
+        // Comupte roll (integrate omega r)
+        int ComputeRoll(NUM_BUFFER *n, signed short *computedValue);
 
         int ProcessGyroData();          // Process pitch and yaw rates
         signed short getHeading();      // accessors
         signed short getPitch();
+        signed short getRoll();
         signed short getdRoll();
         signed short getdPitch();
         signed short getdYaw();

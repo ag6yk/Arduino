@@ -48,8 +48,7 @@ Gyro::Gyro(void)
     }
 
     _gfifoCount = 0;
-    _gPitchValid = false;
-    _gYawValid = false;
+    _gDataValid = false;
     _gSampleCount = 0;
     _pitch.t0 = 0;
     _pitch.tn = 0;
@@ -57,13 +56,15 @@ Gyro::Gyro(void)
     _yaw.t0 = 0;
     _yaw.tn = 0;
     _yaw.tn1 = 0;
+    _roll.t0 = 0;
+    _roll.tn = 0;
+    _roll.tn1 = 0;
     _gHeading = 0;
     _gPitch = 0;
+    _gRoll = 0;
     _gdRoll = 0;
     _gdPitch = 0;
     _gdYaw = 0;
-    _gHeading = 0;
-    _gPitch = 0;
 
 }
 
@@ -337,6 +338,7 @@ int Gyro::ReadGyroData()
         // it is in the buffer due to the autoincrement feature
         lsbTemp = Wire.read();
         msbTemp = Wire.read();
+        _gOrVector[i-1] = (signed short)temp;
 
         // Read the pitch rate data
         lsbTemp = Wire.read();
@@ -357,6 +359,22 @@ int Gyro::ReadGyroData()
 	}
 
 	// Success
+	return 0;
+}
+
+// Compute the roll from the sampled rotational velocity data
+// using numerical integration
+int Gyro::ComputeRoll(NUM_BUFFER *n, signed short* computedValue)
+{
+	// Locals
+	signed short newRoll;
+
+	// Compute the new integral
+	newRoll = trapIntegral(n->tn, n->tn1);
+	// Add to the accumulator
+	n->t0 = n->t0 + newRoll;
+	// Return the new value
+	*computedValue = (signed short)n->t0;
 	return 0;
 }
 
@@ -427,8 +445,7 @@ int Gyro::ProcessGyroData()
     // Update the validity flags
     if(_gSampleCount > 2)
     {
-        _gPitchValid = true;
-        _gYawValid = true;
+        _gDataValid = true;
     }
 
     // Samples are arranged in time-descending order,
@@ -441,15 +458,24 @@ int Gyro::ProcessGyroData()
     _yaw.tn1 = _yaw.tn;
     _yaw.tn = _gdYaw;
 
-    // Compute the pitch from the omegaP
-    if(_gPitchValid)
-    {
-        lStatus = ComputePitch(&_pitch, &_gPitch);
-    }
+    _roll.tn1 = _roll.tn;
+    _roll.tn = _gdRoll;
 
-    if(_gYawValid)
+    // Compute the rotational data from the omegas
+    if(_gDataValid)
     {
-        lStatus = ComputeHeading(&_yaw, &_gHeading);
+#if PITCH_ENABLE
+    	lStatus = ComputePitch(&_pitch, &_gPitch);
+#endif
+
+#if ROLL_ENABLE
+    	lStatus = ComputeRoll(&_roll, &_gRoll);
+#endif
+
+#if YAW_ENABLE
+    	lStatus = ComputeHeading(&_yaw, &_gHeading);
+#endif
+
     }
 
     return 0;
@@ -464,6 +490,11 @@ signed short Gyro::getHeading()
 signed short Gyro::getPitch()
 {
     return _gPitch;
+}
+
+signed short Gyro::getRoll()
+{
+	return _gRoll;
 }
 
 signed short Gyro::getdRoll()
@@ -497,8 +528,7 @@ int Gyro::flush()
 int Gyro::setOrigin()
 {
     // Reset the pitch and heading accumulators
-    _gPitchValid = false;
-    _gYawValid = false;
+    _gDataValid = false;
     _gSampleCount = 0;
     _pitch.t0 = 0;
     _pitch.tn = 0;
@@ -506,13 +536,15 @@ int Gyro::setOrigin()
     _yaw.t0 = 0;
     _yaw.tn = 0;
     _yaw.tn1 = 0;
+    _roll.t0 = 0;
+    _roll.tn = 0;
+    _roll.tn1 = 0;
     _gHeading = 0;
     _gPitch = 0;
+    _gRoll = 0;
     _gdRoll = 0;
     _gdPitch = 0;
     _gdYaw = 0;
-    _gHeading = 0;
-    _gPitch = 0;
 
     return 0;
 }

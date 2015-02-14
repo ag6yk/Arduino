@@ -63,37 +63,36 @@ The producer will have control of the buffer switching.
 // DATA structures
 ///////////////////////////////////////////////////////////////////////////////
 
+typedef unsigned char byte;
 
 // Define the Nav Data packet status to the RobotRIO
 // SPI payload
 struct NAV_DATA
 {
-    char           Position_X_MSB;  // Most significant byte of X position data
-    char           Position_X_LSB;  // Least significant byte of X position data
-    char           Velocity_X_MSB;  // Most significant byte of X velocity data
-    char           Velocity_X_LSB;  // Least significant byte of X velocity data
-    char           Accel_X_MSB;     // Most significant byte of X acceleration data
-    char           Accel_X_LSB;     // Least significant byte of X acceleration data
-    char           Position_Y_MSB;  // Most significant byte of Y position data
-    char           Position_Y_LSB;  // Least significant byte of Y position data
-    char           Velocity_Y_MSB;  // Most significant byte of Y velocity data
-    char           Velocity_Y_LSB;  // Least significant byte of Y velocity data
-    char           Accel_Y_MSB;     // Most significant byte of Y acceleration data
-    char           Accel_Y_LSB;     // Least significant byte of Y acceleration data
-    char           Heading_MSB;     // Most significant byte of heading
-                                    // (relative to robot)
-    char           Heading_LSB;     // Least significant byte of heading
-    char           Pitch_MSB;       // Most significant byte of pitch
-    char           Pitch_LSB;       // Least significant byte of pitch
-    char           VectorX_MSB;     // Most significant byte of compass X data
-    char           VectorX_LSB;
-    char           VectorY_MSB;     // Most significant byte of compass Y data
-    char           VectorY_LSB;
-    unsigned char  Range_0;         // Range 0 sensor reading
-    unsigned char  Range_1;         // Range 1 sensor reading
-    unsigned char  Range_2;         // Range 2 sensor reading
-    unsigned char  Range_3;         // Range 3 sensor reading
-    unsigned char  Range_4;         // Range 4 sensor reading
+    byte           Position_X_MSB;  // Most significant byte of X position data
+    byte           Position_X_LSB;  // Least significant byte of X position data
+    byte           Velocity_X_MSB;  // Most significant byte of X velocity data
+    byte           Velocity_X_LSB;  // Least significant byte of X velocity data
+    byte           Accel_X_MSB;     // Most significant byte of X acceleration data
+    byte           Accel_X_LSB;     // Least significant byte of X acceleration data
+    byte           Position_Y_MSB;  // Most significant byte of Y position data
+    byte           Position_Y_LSB;  // Least significant byte of Y position data
+    byte           Velocity_Y_MSB;  // Most significant byte of Y velocity data
+    byte           Velocity_Y_LSB;  // Least significant byte of Y velocity data
+    byte           Accel_Y_MSB;     // Most significant byte of Y acceleration data
+    byte           Accel_Y_LSB;     // Least significant byte of Y acceleration data
+    byte           Heading_MSB;     // Most significant byte of heading
+    byte           Heading_LSB;     // Least significant byte of heading
+    byte           Range_0_MSB;     // Most significant byte of Range 0 sensor reading
+    byte           Range_0_LSB;     // Least significant byte of Range 0 sensor reading
+    byte           Range_1_MSB;     // Most significant byte of Range 0 sensor reading
+    byte           Range_1_LSB;     // Least significant byte of Range 0 sensor reading
+    byte           Range_2_MSB;     // Most significant byte of Range 0 sensor reading
+    byte           Range_2_LSB;     // Least significant byte of Range 0 sensor reading
+    byte           Range_3_MSB;     // Most significant byte of Range 0 sensor reading
+    byte           Range_3_LSB;     // Least significant byte of Range 0 sensor reading
+    byte           Range_4_MSB;     // Most significant byte of Range 0 sensor reading
+    byte           Range_4_LSB;     // Least significant byte of Range 0 sensor reading
 };
 
 

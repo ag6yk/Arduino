@@ -36,13 +36,17 @@ class Ultrasonic : public Sensor
 {
 
   private:
-      int   _trigger;               		// Pin assigned for the trigger signal
-      int   _echo;                  		// Pin assigned for the echo signal
+      int   			_trigger;			// Pin assigned for the trigger signal
+      int   			_echo;              // Pin assigned for the echo signal
+      unsigned short	_range;				// latest range from the sensor
   
   public:
     Ultrasonic(int Trigger, int Echo);
     ~Ultrasonic();
-    unsigned char ReadRange();				// Read the range data
+    unsigned short ReadRange();				// Read the range data
+
+    // Accessor
+    unsigned short	getRange();
   
 };
 
