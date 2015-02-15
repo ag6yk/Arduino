@@ -40,7 +40,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 // Uncomment to test Arduino without the RobotRIO
-#define BENCH_TEST    1
+#define BENCH_TEST    0
 
 // Conditionally compile for each sensor
 #define ACCEL_ENABLE    1
@@ -49,7 +49,7 @@
 #define BARO_ENABLE     0
 #define RANGES_ENABLE   0
 
-#define SPI_INT_ENABLE  0
+#define SPI_INT_ENABLE  1
 
 //////////////////////////
 // Arduino Pin definitions
@@ -111,6 +111,8 @@ struct NAV_DATA navBuffer1;
 struct NAV_DATA* producer = &navBuffer0;
 struct NAV_DATA* consumer = &navBuffer1;
 unsigned char*  pSPIData;
+volatile unsigned long SPIInterruptCount;
+volatile unsigned char SPICommand;
 
 // Producer state variables
 
@@ -201,6 +203,7 @@ void setup(void)
     
     // Preset the SPI buffer 
     SPDR = STS_NAV_DATA_NREADY;
+    SPICommand = 0;
 
 #if BENCH_TEST
     Serial.println("SPI configured");
@@ -251,57 +254,98 @@ void setup(void)
  
 }
 
+volatile byte foo;
+
 #if SPI_INT_ENABLE
 // SPI interrupt service routine
 ISR(SPI_STC_vect)
 {
     // Locals
-    byte spiData;
+    byte spiReceivedData;
+    byte spiSentData;
+    
+    // Increment the count
+    SPIInterruptCount++;
     
     // The nature of SPI guarantees we have some data
-    spiData = SPDR;
+    spiReceivedData = SPDR;
     
     // Process the interrupt based on the the input value and state
-    switch(spiData)
+    switch(spiReceivedData)
     {
-        // In the process of or begin sending nav data
+        // Continuation command
         case SPI_NAV_CONTINUE:
-        case SPI_NAV_DATA_DAT:        
         {
-            // Skip if locked
-            if(consumerEnable == false)
+            // base actions on the previous command
+            switch(SPICommand)
             {
-                SPDR = STS_NAV_DATA_NREADY;
-            }
-            else
-            {
-                // Send the next data point
-                SPDR = *pSPIData++;
-                
-                // See if complete
-                consumerCount++;
-                if(consumerCount > sizeof(NAV_DATA))
+                // Continuation - nav data send in process
+                case SPI_NAV_CONTINUE:
                 {
-                    // Notify the main loop ready to switch
-                    consumerBusy = false;
-                    // Disable any re-sends
-                    consumerEnable = false;
+                    // TODO: send next nav data 
+                    // Skip if locked
+                    spiSentData = foo++;
+
+#if 0
+                    // Skip if locked
+                    if(consumerEnable == false)
+                    {
+                        SPDR = STS_NAV_DATA_NREADY;
+                    }
+                    else
+                    {
+                        // Send the next data point
+                        SPDR = *pSPIData++;
+                
+                        // See if complete
+                        consumerCount++;
+                        if(consumerCount > sizeof(NAV_DATA))
+                        {
+                            // Notify the main loop ready to switch
+                            consumerBusy = false;
+                            // Disable any re-sends
+                            consumerEnable = false;
+                        }
+                    }
+#endif
+                    break;
                 }
-            }
-            break;
-        }
-        
-        // Requesting to reset the nav data origin
-        case SPI_SET_ORIGIN:
-        {
-            // Set the flag - always allowed
-            spiSetOrigin = true;
-            break;
-        }
-        
-        // Report whether new data is available
-        case SPI_NAV_DATA_STS:
-        {
+                
+                case SPI_NAV_DATA_DAT:
+                {
+                    // TODO: Send next nav data
+                    spiSentData = foo++;
+#if 0
+                    // Skip if locked
+                    if(consumerEnable == false)
+                    {
+                        SPDR = STS_NAV_DATA_NREADY;
+                    }
+                    else
+                    {
+                        // Send the next data point
+                        SPDR = *pSPIData++;
+                
+                        // See if complete
+                        consumerCount++;
+                        if(consumerCount > sizeof(NAV_DATA))
+                        {
+                            // Notify the main loop ready to switch
+                            consumerBusy = false;
+                            // Disable any re-sends
+                            consumerEnable = false;
+                        }
+                    }
+#endif
+                    SPICommand = 0;
+                    break;
+                }
+                
+                case SPI_NAV_DATA_STS:
+                {
+                    spiSentData = 0xFF;
+                    SPICommand = 0;
+#if 0
             // Check for data available
             if((consumerEnable == true)&& (consumerBusy == false))
             {
@@ -316,15 +360,61 @@ ISR(SPI_STC_vect)
                 // Data not ready yet
                 SPDR = STS_NAV_DATA_NREADY;
             }
+#endif
+                    break;
+                }
+            
+                default:
+                {
+                    spiSentData = 60;
+                }
+            }
+            break;
+        }           
+        
+        // Begin sending nav data
+        case SPI_NAV_DATA_DAT:        
+        {
+            // Capture the state
+            SPICommand = spiReceivedData;
+// TODO: Set up buffer for sending
+            spiSentData = 50;
+            break;
+        }
+         
+        
+        // Requesting to reset the nav data origin
+        case SPI_SET_ORIGIN:
+        {
+            // Set the flag - always allowed
+            spiSetOrigin = true;
+            spiSentData = 40;
+            break;
+        }
+        
+        // Report whether new data is available
+        case SPI_NAV_DATA_STS:
+        {
+            // Capture the state
+            SPICommand = spiReceivedData;
+// TODO: Check for nav data
+            spiSentData = 1;
             break;
         }
         
         // Illegal command - send bad status
         default:
         {
-            SPDR = SPI_ILLEGAL_REGISTER;
+            spiSentData = SPI_ILLEGAL_REGISTER;
+            SPICommand = 0;
         }
-    }// End switch    
+    }// End switch 
+    
+    SPDR = spiSentData;
+// DEBUG DEBUG DEBUG
+    Serial.print("Rcvd:  "); Serial.println(spiReceivedData, DEC);
+    Serial.print("Sent:  "); Serial.println(spiSentData, DEC);
+       
 }
 #endif 
 
@@ -334,12 +424,24 @@ void loop(void)
     // Locals
     struct NAV_DATA*    pTemp;
     int imuStatus;
+    int i;
+    
+    i++;
+    if(i > 100)
+    {
+        Serial.println("Arduino is alive!!!");
+        i = 0;
+        delay(500);
+    }
+    
+    
 
     // Always check if the nav data should be reset
     if(spiSetOrigin == true)
     {
+        Serial.println("Origin Set");
         imuAccel.setOrigin();
-        imuGyro.setOrigin();
+//        imuGyro.setOrigin();
         spiSetOrigin = false;
     }
     
@@ -352,7 +454,15 @@ void loop(void)
         // Restart interval timer
         previousMillis = currentMillis;
         
+#if BENCH_TEST
+#else
         // Process the IMU sensors
+        if(deTime >= debug_interval)
+        {
+            Serial.print("SPI count = "); Serial.println(SPIInterruptCount);
+            previousDisplayMillis = currentMillis;
+        }
+#endif
 
 #if ACCEL_ENABLE  
         // Process any new accelerometer data
