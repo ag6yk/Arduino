@@ -48,10 +48,10 @@ Ultrasonic::Ultrasonic(int Trigger, int Echo)
 // Values for inches: T/148
 // Use Q8:8 fixed point value to preserve resolution
 // Therefore reported range will run from 128 to 30720
-// Sensor will return 36000 for out-of-range
-// Function will return 128 to 30720 for valid range
+// Sensor will report 36000 for out-of-range
+// Function will report 128 to 30720 for valid range
 // and 65535 for out-of-range
-unsigned short Ultrasonic::ReadRange()
+int Ultrasonic::ReadRange()
 {
 	// Define locals
 	unsigned long Tprop;
@@ -91,8 +91,7 @@ unsigned short Ultrasonic::ReadRange()
 	// Update internal buffer
 	_range = Range;
 
-    // return result
-    return Range;
+    return 0;
 }
 
 // Accessor
