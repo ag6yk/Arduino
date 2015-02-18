@@ -38,7 +38,7 @@
 //////////////////
 // SPI Interface
 //////////////////
-
+//+1 +1 +1 −1 −1 +1 −1
 /*!
 The SPI interface will use a register-based architecture. The RobotRIO master
 will write to pseudo-register addresses to command the Arduino slave to

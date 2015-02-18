@@ -22,29 +22,15 @@
 */
 
 ///////////////////////////////////////////////////////////////////////////////
-// INCLUDES
+// CONFIGURATION
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <Wire.h>
-#include <SPI.h>
-#include "Sensor.h"
-#include "Gyro.h"
-#include "Accel.h"
-#include "Compass.h"
-#include "Baro.h"
-#include "Ultrasonic.h"
-#include "SPINavIf.h"
-
-///////////////////////////////////////////////////////////////////////////////
-// DEFINITIONS
-///////////////////////////////////////////////////////////////////////////////
-
-// Conditional compile flags for testing environments
+// Conditional compile flags for testing environments and transports
 
 // Enable to see serial monitor output
 #define BENCH_TESTING   1
 
-// Enable to test SPI interface with canned data
+// Enable to test NAV interface with canned data
 #define NAV_DATA_TEST   1
 
 // Enable to test the Arduino sensor interface
@@ -59,7 +45,44 @@
 #define RANGES_ENABLE   1
 
 // Conditionally compile support for the SPI interrupt
-#define SPI_INT_ENABLE  1
+#define SPI_INT_ENABLE  0
+
+// Conditionally compile support for software UART
+#define SUART_ENABLE    1
+
+
+///////////////////////////////////////////////////////////////////////////////
+// INCLUDES
+///////////////////////////////////////////////////////////////////////////////
+
+// I2C support
+#include <Wire.h>
+// SPI transport
+#if SPI_INT_ENABLE
+#include <SPI.h>
+#include "SPINavIf.h"
+#else
+// Software UART
+#if SUART_ENABLE
+#include <SoftwareSerial.h>
+#include "SUartNavIf.h"
+#else
+#error "No valid transport selected. Choose SPI or Soft UART"
+#endif
+#endif
+// Sensor superclass
+#include "Sensor.h"
+// Specific sensor classes
+#include "Gyro.h"
+#include "Accel.h"
+#include "Compass.h"
+#include "Baro.h"
+#include "Ultrasonic.h"
+
+///////////////////////////////////////////////////////////////////////////////
+// DEFINITIONS
+///////////////////////////////////////////////////////////////////////////////
+
 
 //////////////////////////
 // Arduino Pin definitions
@@ -68,9 +91,6 @@
 // Define the Pins used to interface to the IMU
 // SDA and SCL already defined for A4 and A5 respectively
 // No other signals are used from the IMU
-
-// Pins 10-13 used as SPI interface
-// Pins 0-1 uses as serial debug monitor
 
 // Define the Pins used for the range sensor data
 #define PING0       2
@@ -84,13 +104,24 @@
 #define PING4       A0
 #define ECHO4       A1
 
+#if SUART_ENABLE
+// Define the soft UART pins
+#define SUART_RX    12
+#define SUART_TX    13
+// D10 and D11 are spare
 // A2 and A3 are spare
+#else
+// Pins 10-13 are reserved for SPI interface
+// A2 and A3 are spare
+#endif
 
 
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBAL DECLARATIONS
 ///////////////////////////////////////////////////////////////////////////////
+
+// Ultrasonic sensor support
 
 // C++ Pin assignments
 const int    Ping0 = PING0;             // Range sensor 0 (front left)
@@ -104,6 +135,8 @@ const int    Echo3 = ECHO3;
 const int    Ping4 = PING4;             // Range sensor 4 (left)
 const int    Echo4 = ECHO4;
 
+
+
 // Instantiate five range sensor objects
 Ultrasonic rangeSensor0(Ping0, Echo0);
 Ultrasonic rangeSensor1(Ping1, Echo1);
@@ -111,11 +144,22 @@ Ultrasonic rangeSensor2(Ping2, Echo2);
 Ultrasonic rangeSensor3(Ping3, Echo3);
 Ultrasonic rangeSensor4(Ping4, Echo4);
 
+#if SUART_ENABLE
+// C++ Pin assignments
+const int   UartRx = SUART_RX;          // Software UART RX pin
+const int   UartTx = SUART_TX;          // Software UART TX pin
+
+// Instantiate the software UART
+SoftwareSerial  navUart(UartRx, UartTx);
+
+#endif
+
 
 /////////////////////////////////
 // NAV data buffers and pointers
 /////////////////////////////////
 
+#if SPI_INT_ENABLE
 // Define two test buffers with canned data
 const struct NAV_DATA   testBuffer0 =
 {
@@ -152,6 +196,31 @@ volatile boolean    consumerEnable;         // true = consumer can update
 // Inter-process variables
 volatile boolean    spiSetOrigin;           // true = read current position
                                             // and set as 0,0
+
+#else
+#if SUART_ENABLE
+// Define a single test buffer with canned data
+const struct NAV_DATA   testBuffer =
+{
+    0x27, 101, 102, 103, 104, 105, 106, 107, 108, 109,
+    110, 111, 112, 113, 114, 115, 116, 117, 118,
+    0xBC
+};
+
+// Define the RAM nav buffer for actual data
+struct NAV_DATA navBuffer;
+
+// Initialize a byte pointer into the data
+byte*   navPtr;
+
+// Capture the most current command from the host
+byte    navCommand;
+
+// Keep track of the alternating Barker code sync byte
+byte    navBarkerCode;
+
+#endif
+#endif
 
 // Device status
 int             GyroStatus;                 // 0 = device OK
@@ -199,7 +268,8 @@ void setup(void)
     Serial.println("Setup Debug Info...");
     delay(500);
 #endif
-  
+
+#if SPI_INT_ENABLE  
     // Clear the NAV buffers
     pptr = (unsigned char*)(&navBuffer0);
     qptr = (unsigned char*)(&navBuffer1);
@@ -208,10 +278,19 @@ void setup(void)
         *pptr++ = 0;
         *qptr++ = 0;
     }
+#else
+    // Clear the NAV buffer
+    pptr = (unsigned char*)(&navBuffer);
+    for(i=0; i < sizeof(NAV_DATA); i++)
+    {
+        *pptr++ = 0;
+    }
+#endif
 
     // Initialize the I2C as a master
     Wire.begin();
   
+#if SPI_INT_ENABLE
     // Initialize the SPI as a slave
     pinMode(MISO, OUTPUT);
     pinMode(MOSI, INPUT);
@@ -252,6 +331,28 @@ void setup(void)
 #if BENCH_TESTING
     Serial.println("SPI configured");
     delay(500);
+#endif
+
+#else // SPI_INT_ENABLE
+
+    // Configure the Software uart
+    // 57600 baud rate
+    navUart.begin(57600);
+    
+    // Initialize the alternating Barker code
+    navBarkerCode = NAV_SYNC_NOINVERT;
+    
+#if NAV_DATA_TEST
+    navPtr = (byte*)&testBuffer;
+#else
+    navPtr = (byte*)&navBuffer;
+#endif
+
+#if BENCH_TESTING
+    Serial.println("Software UART configured");
+    delay(500);
+#endif
+    
 #endif
   
     // Configure the IMU
@@ -297,8 +398,6 @@ void setup(void)
 
  
 }
-
-volatile byte foo;
 
 #if SPI_INT_ENABLE
 // SPI interrupt service routine
@@ -471,9 +570,224 @@ ISR(SPI_STC_vect)
 void loop(void)
 {
     // Locals
-    struct NAV_DATA*    pTemp;                  // used to format data
-    int imuStatus;
-    boolean Display = false;
+    int         imuStatus;
+    int         rxCount;
+    boolean     Display = false;
+    NAV_DATA*   nDP;
+    byte*       nDPb;
+    int         i;
+    
+#if SUART_ENABLE
+    // Set up the UART to listen for a new request
+    navUart.listen();
+    rxCount = navUart.available();
+    if(rxCount)
+    {
+        // Read the first byte as the command
+        navCommand = navUart.read();
+        
+        // Process the command
+        switch(navCommand)
+        {
+            case NAV_SET_ORIGIN:
+            {
+#if BENCH_TESTING
+                Serial.println("Origin Set");
+#endif
+
+#if ACCEL_ENABLE
+                imuAccel.setOrigin();
+#endif
+
+#if GYRO_ENABLE
+                imuGyro.setOrigin();
+#endif
+                break;
+            }
+                
+            case NAV_RUN_POST:
+            {
+// TODO - future support
+                break;
+            }
+            
+            default:
+            {
+                Serial.println("Illegal Nav command received!");
+                navUart.write(NAV_ILLEGAL_COMMAND);
+            }
+        }// end switch
+    }
+        
+    // Update the interval timers    
+    currentMillis = millis();
+    eTime = currentMillis - previousMillis;
+    deTime = currentMillis - previousDisplayMillis;
+    hbTime = currentMillis - previousHBMillis;
+    
+    if(deTime >= debug_interval)
+    {
+        Display = true;
+        previousDisplayMillis = currentMillis;
+    }
+    
+    // Update the heart beat every second
+    if(hbTime >= hbInterval)
+    {
+        // Restart the timer
+        ArduinoHeartBeat++;
+        previousHBMillis = currentMillis;
+#if BENCH_TESTING
+        Serial.print("HB = "); Serial.println(ArduinoHeartBeat);
+        delay(10);
+#endif
+    }
+
+    // Update nav data every 10 ms
+    if(eTime >= interval)
+    {
+        // Reset the pointer
+        nDP = (NAV_DATA*)navPtr;
+        
+        // Restart interval timer
+        previousMillis = currentMillis;
+        
+        // Process the IMU sensors
+
+#if ACCEL_ENABLE  
+        // Process any new accelerometer data
+        imuStatus = imuAccel.ProcessAccelData();
+        
+#if NAV_DATA_TEST
+        // Skip this step
+#else
+        // If no errors update the buffer
+        if(imuStatus == 0)
+        {
+            // Split the 16-bit values into 2 8-bit values
+            nDP->Position_X_MSB = highByte(imuAccel.getPositionX());
+            nDP->Position_X_LSB = lowByte(imuAccel.getPositionX());
+            nDP->Position_Y_MSB = highByte(imuAccel.getPositionY());
+            nDP->Position_Y_LSB = lowByte(imuAccel.getPositionY());
+        }
+        else
+        {
+            // Indicate data invalid
+            nDP->Position_X_MSB = 0xFF;
+            nDP->Position_X_LSB = 0xFF;
+            nDP->Position_Y_MSB = 0xFF;
+            nDP->Position_Y_LSB = 0xFF;
+        }
+#if BENCH_TESTING
+        // Check if display update elapsed
+        if(Display)
+        {
+            // Display debug information
+            Serial.print("Position X     = "); Serial.println(imuAccel.getPositionX(), DEC);
+            Serial.print("Position Y     = "); Serial.println(imuAccel.getPositionY(), DEC);
+            delay(500);
+        }
+#endif
+#endif
+#endif
+
+#if GYRO_ENABLE
+        // Process any new Gyroscope data
+        imuStatus = imuGyro.ProcessGyroData();
+        
+#if NAV_DATA_TEST
+        // skip this step
+#else
+        // If no errors update the buffer
+        if(imuStatus == 0)
+        {
+            // Update the nav buffer
+            nDP->Heading_MSB = highByte(imuGyro.getHeading());
+            nDP->Heading_LSB = lowByte(imuGyro.getHeading());
+            nDP->Pitch_MSB = highByte(imuGyro.getPitch());
+            nDP->Pitch_LSB = lowByte(imuGyro.getPitch());
+        }
+        else
+        {
+            // indicate data invalid
+            nDP->Heading_MSB = 0xFF;
+            nDP->Heading_LSB = 0xFF;
+            nDP->Pitch_MSB = 0xFF;
+            nDP->Pitch_LSB = 0xFF;
+        }
+
+#if BENCH_TEST
+        // Check if display update elapsed
+        if(Display)
+        {
+            // Display debug information
+            Serial.print("Heading   = "); Serial.println(imuGyro.getHeading(), DEC);
+            Serial.print("Pitch     = "); Serial.println(imuGyro.getPitch(), DEC);
+            delay(500);
+        }
+        
+#endif
+#endif
+#endif
+
+        // Compass: not supported for this application
+       
+        // Barometer: not supported for this application
+        
+#if RANGES_ENABLE
+
+        // Process the range sensor data    
+        rangeSensor0.ReadRange();
+        rangeSensor1.ReadRange();
+        rangeSensor2.ReadRange();
+        rangeSensor3.ReadRange();
+        rangeSensor4.ReadRange();
+    
+#if NAV_DATA_TEST
+        // skip this step
+#else
+        // Update the buffer
+        nDP->Range_0_MSB = highbyte(rangeSensor0.getRange());
+        nDP->Range_0_LSB = lowbyte(rangeSensor0.getRange());
+        nDP->Range_1_MSB = highbyte(rangeSensor1.getRange());
+        nDP->Range_1_LSB = lowbyte(rangeSensor1.getRange());
+        nDP->Range_2_MSB = highbyte(rangeSensor2.getRange());
+        nDP->Range_2_LSB = lowbyte(rangeSensor2.getRange());
+        nDP->Range_3_MSB = highbyte(rangeSensor3.getRange());
+        nDP->Range_3_LSB = lowbyte(rangeSensor3.getRange());
+        nDP->Range_4_MSB = highbyte(rangeSensor4.getRange());
+        nDP->Range_4_LSB = lowbyte(rangeSensor4.getRange());
+
+#if BENCH_TESTING
+        // Check to see if display interval has elapsed
+        if(Display)
+        {
+            Serial.print("Range 0 = "); Serial.println(rangeSensor0.getRange(), DEC);
+            Serial.print("Range 1 = "); Serial.println(rangeSensor0.getRange(), DEC);
+            Serial.print("Range 2 = "); Serial.println(rangeSensor0.getRange(), DEC);
+            Serial.print("Range 3 = "); Serial.println(rangeSensor0.getRange(), DEC);
+            Serial.print("Range 4 = "); Serial.println(rangeSensor0.getRange(), DEC);
+            delay(500);
+        }
+#endif
+#endif
+#endif
+
+        // Send the data to the software UART
+        nDPb = (byte*)nDP;
+        // Skip the sync byte
+        nDPb++;
+        navUart.write(navBarkerCode);
+        for(i=1; i < sizeof(NAV_DATA); i++)
+        {
+            navUart.write(*nDPb++);
+        }
+        // Alternate for the next frame
+        navBarkerCode = !navBarkerCode;
+    }
+        
+        
+#else // SUART_ENABLE
 
     // Always check if the nav data should be reset
     if(spiSetOrigin == true)
@@ -688,6 +1002,8 @@ void loop(void)
         consumerEnable = true;                  // unlock ISR
         SPI.attachInterrupt();                  // enable SPI interrupt
     }
+    
+#endif
     // And do it again, and again, ...
 }
 
