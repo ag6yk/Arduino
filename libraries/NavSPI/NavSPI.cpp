@@ -22,7 +22,6 @@
 // INCLUDES
 ///////////////////////////////////////////////////////////////////////////////
 #include "Arduino.h"
-#include <SPI.h>
 #include "NavSPI.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -40,13 +39,19 @@
 
 
 // Constructor - placeholder
-NavSPI(int param0, int param1)
+NavSPI::NavSPI(int param0, int param1)
 {
     // NOP
 }
 
+// Destructor - placeholder
+NavSPI::~NavSPI()
+{
+	// NOP
+}
+
 // Class specific initialization
-int begin(int param0)
+int NavSPI::begin(int test)
 {
     // Locals
     int i;
@@ -78,12 +83,12 @@ int begin(int param0)
     // Point the producer to the first buffer
     // Stall the consumer until the producer
     // reads the first full nav data buffer
-    producer = navBuffer0;
-    consumer = navBuffer1;
-    if(param0)
+    producer = &navBuffer0;
+    consumer = &navBuffer1;
+    if(test)
     {
-        producer = testBuffer0;
-        consumer = testBuffer1;
+        producer = (NAV_DATA*)&testBuffer0;
+        consumer = (NAV_DATA*)&testBuffer1;
     }
 
     consumerCount = 0;
@@ -103,7 +108,7 @@ int begin(int param0)
 }
 
 // SPI interrupt service routine
-void SPIisr(void)
+void NavSPI::SPIisr(void)
 {
     // Locals
     byte spiReceivedData;
@@ -211,7 +216,7 @@ void SPIisr(void)
             break;
         }
 
-        // Requesting to reset the nav data origin
+        // See if new nav data is available
         case SPI_NAV_DATA_STS:
         {
             // Capture the command
@@ -222,6 +227,15 @@ void SPIisr(void)
                 spiSentData = STS_NAV_DATA_READY;
             }
             break;
+        }
+
+        // Requesting to reset the nav data origin
+        case SPI_SET_ORIGIN:
+        {
+        	// Capture the command
+        	SPICommand = spiReceivedData;
+        	spiSetOrigin = true;
+        	break;
         }
 
         // Illegal command - send bad status
@@ -236,29 +250,241 @@ void SPIisr(void)
     // Preload the new byte to be sent on the next clock
     SPDR = spiSentData;
 
-#if BENCH_TESTING
-    Serial.print("Rcvd:  "); Serial.println(spiReceivedData, DEC);
-    Serial.print("Sent:  "); Serial.println(spiSentData, DEC);
-#endif
 }
 
-// Update the data from the sensor array
+// Read and update the nav data
+int NavSPI::update(bool test)
+{
+	// Locals
+	int i;
+	int	Status = 0;
+	int imuStatus;
+	byte* nDPb = (byte*)producer;
+
+	// Fill the buffer with invalid data
+	for(i = 0; i < sizeof(NAV_DATA); i++)
+	{
+		*nDPb++ = 0xFF;
+	}
+
+	// Only process the sensors that have been enabled
+	// by the main application
+	if(_accelerometer)
+	{
+		imuStatus = _accelerometer->ProcessAccelData(test);
+
+		if(imuStatus == 0)
+		{
+			// Update the accelerometer data
+			producer->Position_X_MSB = highByte(_accelerometer->getPositionX());
+			producer->Position_X_LSB = lowByte(_accelerometer->getPositionX());
+			producer->Velocity_X_MSB = highByte(_accelerometer->getVelocityX());
+			producer->Velocity_X_LSB = lowByte(_accelerometer->getVelocityX());
+			producer->Accel_X_MSB = highByte(_accelerometer->getAccelerationX());
+			producer->Accel_X_LSB = lowByte(_accelerometer->getAccelerationX());
+			producer->Position_Y_MSB = highByte(_accelerometer->getPositionY());
+			producer->Position_Y_LSB = lowByte(_accelerometer->getPositionY());
+			producer->Position_Y_LSB = lowByte(_accelerometer->getPositionX());
+			producer->Velocity_Y_MSB = highByte(_accelerometer->getVelocityY());
+			producer->Velocity_Y_LSB = lowByte(_accelerometer->getVelocityY());
+			producer->Accel_Y_MSB = highByte(_accelerometer->getAccelerationY());
+			producer->Accel_Y_LSB = lowByte(_accelerometer->getAccelerationY());
+		}
+		Status += imuStatus;
+	}
+
+	if(_gyroscope)
+	{
+		imuStatus = _gyroscope->ProcessGyroData(test);
+
+		if(imuStatus == 0)
+		{
+			// Update the gyroscope data
+			producer->Heading_MSB = highByte(_gyroscope->getHeading());
+			producer->Heading_LSB = lowByte(_gyroscope->getHeading());
+			producer->Pitch_MSB = highByte(_gyroscope->getPitch());
+			producer->Pitch_LSB = lowByte(_gyroscope->getPitch());
+		}
+		Status += imuStatus;
+	}
+
+	if(_rangeSensor[0])
+	{
+		imuStatus = _rangeSensor[0]->ReadRange(test);
+		if(imuStatus == 0)
+		{
+			// Update the range sensor data
+			producer->Range_0_MSB = highByte(_rangeSensor[0]->getRange());
+			producer->Range_0_LSB = lowByte(_rangeSensor[0]->getRange());
+		}
+		Status += imuStatus;
+	}
+
+	if(_rangeSensor[1])
+	{
+		imuStatus = _rangeSensor[1]->ReadRange(test);
+		if(imuStatus == 0)
+		{
+			// Update the range sensor data
+			producer->Range_1_MSB = highByte(_rangeSensor[1]->getRange());
+			producer->Range_1_LSB = lowByte(_rangeSensor[1]->getRange());
+		}
+		Status += imuStatus;
+	}
+
+	if(_rangeSensor[2])
+	{
+		imuStatus = _rangeSensor[2]->ReadRange(test);
+		if(imuStatus == 0)
+		{
+			// Update the range sensor data
+			producer->Range_2_MSB = highByte(_rangeSensor[2]->getRange());
+			producer->Range_2_LSB = lowByte(_rangeSensor[2]->getRange());
+		}
+		Status += imuStatus;
+	}
+
+	if(_rangeSensor[3])
+	{
+		imuStatus = _rangeSensor[3]->ReadRange(test);
+		if(imuStatus == 0)
+		{
+			// Update the range sensor data
+			producer->Range_3_MSB = highByte(_rangeSensor[3]->getRange());
+			producer->Range_3_LSB = lowByte(_rangeSensor[3]->getRange());
+		}
+		Status += imuStatus;
+	}
+
+	if(_rangeSensor[4])
+	{
+		imuStatus = _rangeSensor[4]->ReadRange(test);
+		if(imuStatus == 0)
+		{
+			// Update the range sensor data
+			producer->Range_4_MSB = highByte(_rangeSensor[4]->getRange());
+			producer->Range_4_LSB = lowByte(_rangeSensor[4]->getRange());
+		}
+		Status += imuStatus;
+	}
+
+	// data is written to the host as part of the interrupt service routine
+
+	return(Status);
+}
 
 
+// Switch the nav buffers
+void NavSPI::switchBuffers(void)
+{
+	// Locals
+	struct NAV_DATA* pTemp;
 
-        // Inter-process variables
-        volatile    boolean spiSetOrigin;   // true = read current position
-                                            // and set to origin
-                                            //
-        int update(void);                   // update the data
-        void debugDisplay(void);            // process serial monitor 
-        void switchBuffers(void);           // Switch buffers
-        void listen(void);                  // wrapper functions for a consistent API
-        void write(byte);
-        byte read(void);
-};
-#endif
-// End of NavSPI.h
+	// Wait for the proper synchronization
+	while(consumerBusy)
+	{
+		// At 500 KHz, 16 usec per byte, so wait 20 usecs
+		delayMicroseconds(20);
+	}
+	// Critical section
+	SPI.detachInterrupt();				// Disable SPI interrupt
+	consumerEnable = false;				// lock out ISR
+	pTemp = consumer;					// swap pointers
+	consumer = producer;
+	pSPIData = (byte*)consumer;
+	producer = pTemp;
+	consumerEnable = true;				// unlock ISR
+	SPI.attachInterrupt();				// enable SPI interrupt
+	// End of critical section
+}
+
+// Get the current nav command
+int NavSPI::getNavCommand(void)
+{
+	return SPICommand;
+}
+
+// Process the nav command
+int NavSPI::processNavCommand(int Command)
+{
+	// Locals
+
+
+	// Currently support two commands from the main processing loop
+	switch(Command)
+	{
+		case SPI_SET_ORIGIN:
+		{
+			if(spiSetOrigin == true)
+			{
+				if(_accelerometer)
+				{
+					_accelerometer->setOrigin();
+				}
+
+				if(_gyroscope)
+				{
+					_gyroscope->setOrigin();
+				}
+				spiSetOrigin = false;
+			}
+			break;
+		}
+
+		case SPI_PERFORM_POST:
+		{
+			// Future
+			break;
+		}
+
+		default:
+		{
+			// All other commands are handled by the ISR
+		}
+	}
+
+	return 0;
+}
+
+// Accessors
+
+void NavSPI::setAccelerometer(Accel* ac)
+{
+	_accelerometer = ac;
+}
+
+void NavSPI::setGyroscope(Gyro* gs)
+{
+	_gyroscope = gs;
+}
+
+void NavSPI::setCompass(Compass* cp)
+{
+	_compass = cp;
+}
+
+void NavSPI::setBarometer(Baro* br)
+{
+	_barometer = br;
+}
+
+void NavSPI::setSensor0(void* s0)
+{
+	_sensor0 = s0;
+}
+
+void NavSPI::setSensor1(void* s1)
+{
+	_sensor1 = s1;
+}
+
+void NavSPI::setRangeSensor(Ultrasonic* rs, int Index)
+{
+	_rangeSensor[Index] = rs;
+}
+
+
+// End of NavSPI.cpp
 
 
 

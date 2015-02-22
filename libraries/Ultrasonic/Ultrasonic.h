@@ -43,7 +43,7 @@ class Ultrasonic : public Sensor
   public:
     Ultrasonic(int Trigger, int Echo);
     ~Ultrasonic();
-    int ReadRange();						// Read the range data
+    int ReadRange(bool);						// Read the range data
 
     // Accessor
     unsigned short	getRange();

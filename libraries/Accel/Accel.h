@@ -213,7 +213,7 @@ class Accel : public Sensor
         int ComputeXoft(NUM_BUFFER *n, signed short* computedValue);
 
         // Process acceleration data from sensor
-        int ProcessAccelData();
+        int ProcessAccelData(int);
         signed short getAccelerationX();    // accessors
         signed short getAccelerationY();
         signed short getVelocityX();

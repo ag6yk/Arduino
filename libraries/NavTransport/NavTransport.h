@@ -26,6 +26,13 @@
 #define NaVTransport_h
 #include "Arduino.h"
 
+// These includes are specific to the application
+#include "Accel.h"
+#include "Baro.h"
+#include "Compass.h"
+#include "Gyro.h"
+#include "Ultrasonic.h"
+
 ///////////////////////////////////////////////////////////////////////////////
 // DEFINES
 ///////////////////////////////////////////////////////////////////////////////
@@ -34,15 +41,14 @@
 class NavTransport
 {
     private:
-        // Future
     protected:
         // Future
     public:
-        NavTransport();                 // Constructor
-        ~NavTransport();                // Destructor
-        virtual int begin();            // class specific initialization
-        virtual int update();           // Update the nav data
-        virtual int send();             // transmit data buffer to the host
+        NavTransport();                 	// Constructor
+        ~NavTransport();                	// Destructor
+        virtual int begin();            	// class specific initialization
+        virtual int update();           	// Update the nav data
+        virtual int send();             	// transmit data buffer to the host
 };
 
 #endif

@@ -51,7 +51,7 @@ Ultrasonic::Ultrasonic(int Trigger, int Echo)
 // Sensor will report 36000 for out-of-range
 // Function will report 128 to 30720 for valid range
 // and 65535 for out-of-range
-int Ultrasonic::ReadRange()
+int Ultrasonic::ReadRange(bool test)
 {
 	// Define locals
 	unsigned long Tprop;

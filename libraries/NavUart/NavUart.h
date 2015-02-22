@@ -24,7 +24,8 @@
 #ifndef NavUart_h
 #define NavUart_h
 #include "Arduino.h"
-#include <SoftSerial.h>
+#include "/usr/share/arduino/libraries/SoftwareSerial/SoftwareSerial.h"
+#include "../NavTransport/NavTransport.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEFINES
@@ -83,7 +84,7 @@ struct NAV_DATA
     byte    NavEoF;             // End of frame
 };
 
-class NavUart : public NavTransport
+class NavUart : public SoftwareSerial
 {
     private:
         // Define a single test buffer with canned data
@@ -94,10 +95,23 @@ class NavUart : public NavTransport
             0xBC
         };
 
+        // Pointers to sensor types. If NULL, the
+		// sensor type is not supported for the specific application
+		Accel*			_accelerometer;
+		Gyro*			_gyroscope;
+		Compass*		_compass;
+		Baro*			_barometer;
+		Ultrasonic*		_rangeSensor[5];
+		void*			_sensor0;
+		void*			_sensor1;
     
     public:
+
         // Define the RAM nav buffer for actual data
         struct NAV_DATA navBuffer;
+
+        // Initialize a structure pointer
+        struct NAV_DATA*	nDP;
 
         // Initialize a byte pointer into the data
         byte*   navPtr;
@@ -108,16 +122,28 @@ class NavUart : public NavTransport
         // Keep track of the alternating Barker code sync byte
         byte    navBarkerCode;
 
+        // Current count of data received from the host
+        int		rxCount;
+
         // Methods
-        NavUart(int, int);                  // Constructor
-        ~NavUart();                         // Destructor
-        int begin(int);                     // class specific initialization
-        int update(void);                   // update the data
-        void debugDisplay(void);            // process serial monitor 
-        void switchBuffers(void);           // Switch buffers
-        void listen(void);                  // wrapper functions for a consistent API
-        void write(byte);
-        byte read(void);
+        NavUart(int, int, bool);            // Constructor
+       ~NavUart();                          // Destructor
+        int 	begin(int, int)     ;       // class specific initialization
+        int 	update(bool);               // update the nav data
+        void 	switchBuffers(void);        // wrapper function for consistent API
+		int 	getNavCommand(void);        // get any new command from host
+		int 	processNavCommand(int);		// process the nav command
+
+		// Accessors
+        void	setAccelerometer(Accel*);	// Assign the specific object
+        void	setGyroscope(Gyro*);
+        void	setCompass(Compass*);
+        void	setBarometer(Baro*);
+        void	setSensor0(void*);
+        void	setSensor1(void*);
+        void	setRangeSensor(Ultrasonic*, int);
+
+
 };
 #endif
 // End of NavUart.h

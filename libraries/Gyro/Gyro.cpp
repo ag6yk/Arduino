@@ -116,7 +116,7 @@ int Gyro::begin(void)
     Wire.write(byte(0));
   
     // Control register 3
-    // Enable INT1
+    // Disable INT1
     // Disable BOOT status
     // Active high signal
     // Push-pull drive
@@ -125,7 +125,7 @@ int Gyro::begin(void)
     // FIFO overrun disable
     // FIFO Empty disable
     // 0b10000000
-    Wire.write(byte(0x80));
+    Wire.write(byte(0x00));
   
     // Control register 4
     // Block data update not until MSB and LSB read
@@ -143,7 +143,7 @@ int Gyro::begin(void)
     // INT1 from LPF 2
     // Output from LPF 2
     // 0b01011111
-    Wire.write(byte(0x2F));
+    Wire.write(byte(0x5F));
     // Reference value
     // 0
     Wire.write(byte(0));
@@ -238,7 +238,7 @@ boolean Gyro::readID()
 
     // Bus responded check if the value is OK
     ReadBack = Wire.read();                   // read ID byte
-    if(ReadBack == G_I_BETTER_BE)             // Device active and valid
+    if(ReadBack != G_I_BETTER_BE)             // Device active and valid
     {
         i2cStatus = 109;
         goto gyroReadIDError;
@@ -246,13 +246,11 @@ boolean Gyro::readID()
 
     // Process success
 gyroReadIDSuccess:
-    Serial.println("Gyro::readID - good ID");
-    delay(500);
     return true;
 
     // Process the error
 gyroReadIDError:
-    Serial.println("Gyro::readID");
+    Serial.println("Gyro::readID - error!");
     Serial.print("Count  = "); Serial.println(i2cFlowCount);
     Serial.print("Status = "); Serial.println(i2cStatus);
     delay(500);
@@ -411,7 +409,7 @@ int Gyro::ComputeHeading(NUM_BUFFER *n, signed short* computedValue)
 }
 
 // Process rate data
-int Gyro::ProcessGyroData()
+int Gyro::ProcessGyroData(bool test)
 {
     // Locals
     int fCount;
@@ -434,6 +432,11 @@ int Gyro::ProcessGyroData()
         {
             return -1;
         }
+    }
+
+    if(test)
+    {
+    	Serial.println("Gyro FIFO ready");
     }
 
     // FIFO is ready, read the data

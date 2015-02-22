@@ -443,7 +443,7 @@ int Accel::ComputeXoft(NUM_BUFFER *n, signed short* computedValue)
 }
 
 // Process X and Y axes and load the output buffer
-int Accel::ProcessAccelData()
+int Accel::ProcessAccelData(int test)
 {
 	// Locals
 	int fCount;
@@ -466,6 +466,11 @@ int Accel::ProcessAccelData()
 		{
 			return -1;
 		}
+	}
+
+	if(test)
+	{
+		Serial.println("Accel FIFO ready");
 	}
 
 	// FIFO is ready, read 8 samples of data

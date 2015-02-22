@@ -43,16 +43,18 @@
 
 
 // Constructor - placeholder
-NavTransport()
+NavTransport::NavTransport()
+{
+	// NOP
+}
+
+// Destructor - placeholder
+NavTransport::~NavTransport()
 {
     // NOP
 }
 
-// Destructor - placeholder
-~NavTransport()
-{
-    // NOP
-}
+
 
 // End of NavTransport.cpp
 //

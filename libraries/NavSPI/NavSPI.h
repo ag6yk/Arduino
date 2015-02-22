@@ -24,6 +24,9 @@
 #ifndef NavSPI_h
 #define NavSPI_h
 #include "Arduino.h"
+#include "/usr/share/arduino/libraries/SPI/SPI.h"
+#include "../NavTransport/NavTransport.h"
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEFINES
@@ -100,6 +103,8 @@ struct NAV_DATA
     byte           Accel_Y_LSB;     // Least significant byte of Y acceleration data
     byte           Heading_MSB;     // Most significant byte of heading
     byte           Heading_LSB;     // Least significant byte of heading
+    byte           Pitch_MSB;       // Most significant byte of pitch
+    byte           Pitch_LSB;       // Least significant byte of pitch
     byte           Range_0_MSB;     // Most significant byte of Range 0 sensor reading
     byte           Range_0_LSB;     // Least significant byte of Range 0 sensor reading
     byte           Range_1_MSB;     // Most significant byte of Range 0 sensor reading
@@ -123,22 +128,32 @@ class NavSPI : public NavTransport
         {
             100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
             110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
-            120, 121, 122, 123
+            120, 121, 122, 123, 124, 125
         };
 
         const struct NAV_DATA   testBuffer1 =
         {
             200, 201, 202, 203, 204, 205, 206, 207, 208, 209,
             210, 211, 212, 213, 214, 215, 216, 217, 218, 219,
-            220, 221, 222, 223
+            220, 221, 222, 223, 224, 225
         };
+
+        // Pointers to sensor types. If NULL, the
+		// sensor type is not supported for the specific application
+		Accel*			_accelerometer;
+		Gyro*			_gyroscope;
+		Compass*		_compass;
+		Baro*			_barometer;
+		Ultrasonic*		_rangeSensor[5];
+		void*			_sensor0;
+		void*			_sensor1;
 
     protected:
         // Future
     
     public:
         struct  NAV_DATA*   producer;       // buffer pointers
-        struct  NAV_DATA*   comsumer;
+        struct  NAV_DATA*   consumer;
         byte*               pSPIData;       // pointer to buffer as char array
 
         // Producer state variables
@@ -155,19 +170,24 @@ class NavSPI : public NavTransport
                                             //
         // Diagnostics
         volatile    unsigned long   SPIInterruptCount;
-        volatile    unsigned char   SPICommand
+        volatile    unsigned char   SPICommand;
 
         // Methods
         NavSPI(int, int);                   // Constructor
         ~NavSPI();                          // Destructor
-        int begin(int);                     // class specific initialization
-        int update(void);                   // update the data
-        void debugDisplay(void);            // process serial monitor 
-        void SPIisr(void)                   // SPI interrupt service routine
-        void switchBuffers(void);           // Switch buffers
-        void listen(void);                  // wrapper functions for a consistent API
-        void write(byte);
-        byte read(void);
+        int 	begin(int);                 // class specific initialization
+        void 	SPIisr(void);               // SPI interrupt service routine
+        int 	update(bool);				// Update and load the nav data
+        void 	switchBuffers(void);        // Switch buffers
+		int 	getNavCommand(void);		// get the latest command from host
+		int 	processNavCommand(int);		// process the nav command
+        void	setAccelerometer(Accel*);	// Assign the specific object
+        void	setGyroscope(Gyro*);
+        void	setCompass(Compass*);
+        void	setBarometer(Baro*);
+        void	setSensor0(void*);
+        void	setSensor1(void*);
+        void	setRangeSensor(Ultrasonic*, int);
 };
 #endif
 // End of NavSPI.h

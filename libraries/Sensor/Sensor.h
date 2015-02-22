@@ -97,6 +97,7 @@ class Sensor
     boolean waitForI2CResponse(byte nBytes);
     // signed shifts - allows fast integer math with signed values
     // TODO: GCC may handle this in the compiler
+    // HCC-avr appears to handle these correctly
     signed long rsh_sgn32(signed long oldVal, int nbits);
     signed long lsh_sgn32(signed long oldVal, int nbits);
     signed short rsh_sgn16(signed short oldVal, int nbits);

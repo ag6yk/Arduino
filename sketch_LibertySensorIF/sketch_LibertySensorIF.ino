@@ -30,6 +30,16 @@
 // Enable to see serial monitor output
 #define BENCH_TESTING   1
 
+#if BENCH_TESTING
+#define dbg_print(x)        Serial.print(x)
+#define dbg_println(x)      Serial.println(x)
+#define dbg_printlnm(x,y)   Serial.println(x,y)
+#else
+#define dbg_print(x)
+#define dbg_println(x)
+#define dbg_printlnm(x,y)
+#endif
+
 // Enable to test NAV interface with canned data
 #define NAV_DATA_TEST   1
 
@@ -60,12 +70,12 @@
 // SPI transport
 #if SPI_INT_ENABLE
 #include <SPI.h>
-#include "SPINavIf.h"
+#include <NavSPI.h>
 #else
 // Software UART
 #if SUART_ENABLE
 #include <SoftwareSerial.h>
-#include "SUartNavIf.h"
+#include <NavUart.h>
 #else
 #error "No valid transport selected. Choose SPI or Soft UART"
 #endif
@@ -150,74 +160,12 @@ const int   UartRx = SUART_RX;          // Software UART RX pin
 const int   UartTx = SUART_TX;          // Software UART TX pin
 
 // Instantiate the software UART
-SoftwareSerial  navUart(UartRx, UartTx);
-
-#endif
-
-
-/////////////////////////////////
-// NAV data buffers and pointers
-/////////////////////////////////
-
-#if SPI_INT_ENABLE
-// Define two test buffers with canned data
-const struct NAV_DATA   testBuffer0 =
-{
-    100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
-    110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
-    120, 121, 122, 123
-};
-
-const struct NAV_DATA   testBuffer1 =
-{
-    200, 201, 202, 203, 204, 205, 206, 207, 208, 209,
-    210, 211, 212, 213, 214, 215, 216, 217, 218, 219,
-    220, 221, 222, 223
-};
-
-// Define two buffers in RAM for actual data
-struct NAV_DATA navBuffer0;
-struct NAV_DATA navBuffer1;
-
-// Initialize pointers to the data
-struct NAV_DATA* producer = &navBuffer0;
-struct NAV_DATA* consumer = &navBuffer1;
-unsigned char*  pSPIData;
-volatile unsigned long SPIInterruptCount;
-volatile unsigned char SPICommand;
-
-// Producer state variables
-
-// Consumer state variables
-volatile int        consumerCount;          // Data counter
-volatile int        consumerBusy;           // state variable
-volatile boolean    consumerEnable;         // true = consumer can update
-
-// Inter-process variables
-volatile boolean    spiSetOrigin;           // true = read current position
-                                            // and set as 0,0
+NavUart  navIf((int)UartRx, (int)UartTx, false);
 
 #else
-#if SUART_ENABLE
-// Define a single test buffer with canned data
-const struct NAV_DATA   testBuffer =
-{
-    0x27, 101, 102, 103, 104, 105, 106, 107, 108, 109,
-    110, 111, 112, 113, 114, 115, 116, 117, 118,
-    0xBC
-};
-
-// Define the RAM nav buffer for actual data
-struct NAV_DATA navBuffer;
-
-// Initialize a byte pointer into the data
-byte*   navPtr;
-
-// Capture the most current command from the host
-byte    navCommand;
-
-// Keep track of the alternating Barker code sync byte
-byte    navBarkerCode;
+#if SPI_INT_ENABLE
+// Instantiate the SPI transport
+NavSPI  navIf(0, 0);
 
 #endif
 #endif
@@ -258,144 +206,73 @@ unsigned long   hbInterval = 1000;
 void setup(void)
 {
     // Locals
-    int i;
-    unsigned char *pptr;
-    unsigned char *qptr;
+    int Status;
     
 #if BENCH_TESTING
     // Set up the debugger
     Serial.begin(9600);
+    Serial.println(" ");
     Serial.println("Setup Debug Info...");
     delay(500);
 #endif
 
-#if SPI_INT_ENABLE  
-    // Clear the NAV buffers
-    pptr = (unsigned char*)(&navBuffer0);
-    qptr = (unsigned char*)(&navBuffer1);
-    for(i=0; i < sizeof(NAV_DATA); i++)
-    {
-        *pptr++ = 0;
-        *qptr++ = 0;
-    }
-#else
-    // Clear the NAV buffer
-    pptr = (unsigned char*)(&navBuffer);
-    for(i=0; i < sizeof(NAV_DATA); i++)
-    {
-        *pptr++ = 0;
-    }
-#endif
-
     // Initialize the I2C as a master
     Wire.begin();
-  
-#if SPI_INT_ENABLE
-    // Initialize the SPI as a slave
-    pinMode(MISO, OUTPUT);
-    pinMode(MOSI, INPUT);
-    pinMode(SS, INPUT);
-    pinMode(SCK, INPUT);
-  
-    // turn on SPI in slave mode
-    // MSB transmitted first
-    // SPI Mode 0
-    SPCR |= _BV(SPE);
-    
-    // Initialize the producer
-#if NAV_DATA_TEST
-    producer = (NAV_DATA*)&testBuffer0;
-#else
-    producer = &navBuffer0;
-#endif
-    
-    // Initialize the consumer
-    // Put the consumer on hold until the first nav data is ready
-#if NAV_DATA_TEST
-    consumer = (NAV_DATA *)&testBuffer1;
-#else 
-    consumer = &navBuffer1;
-#endif
-    consumerCount = 0;
-    consumerEnable = false;
-    consumerBusy = false;
-    pSPIData = (unsigned char*)&consumer;
-    
-    // Initialize the inter-process variables
-    spiSetOrigin = false;
-    
-    // Preset the SPI buffer 
-    SPDR = STS_NAV_DATA_NREADY;
-    SPICommand = 0;
 
-#if BENCH_TESTING
-    Serial.println("SPI configured");
-    delay(500);
-#endif
-
-#else // SPI_INT_ENABLE
-
-    // Configure the Software uart
-    // 57600 baud rate
-    navUart.begin(57600);
-    
-    // Initialize the alternating Barker code
-    navBarkerCode = NAV_SYNC_NOINVERT;
-    
-#if NAV_DATA_TEST
-    navPtr = (byte*)&testBuffer;
-#else
-    navPtr = (byte*)&navBuffer;
-#endif
-
-#if BENCH_TESTING
-    Serial.println("Software UART configured");
-    delay(500);
-#endif
-    
-#endif
-  
     // Configure the IMU
  
-#if GRYO_ENABLE
+#if GYRO_ENABLE
+    // Enable the gyroscope
+    navIf.setGyroscope(&imuGyro);
     // Configure the gyroscope
     GyroStatus = imuGyro.begin();
-    Serial.print("GyroStatus = ");
-    Serial.println(GyroStatus, DEC);
-    delay(500);
+    dbg_print("GyroStatus = ");
+    dbg_printlnm(GyroStatus, DEC);
 #endif
-  
+ 
 #if ACCEL_ENABLE
+    // Enable the accelerometer
+    navIf.setAccelerometer(&imuAccel);
     // Configure the accelerometer
     AccelStatus = imuAccel.begin();
-    Serial.print("AccelStatus = ");
-    Serial.println(AccelStatus, DEC);
+    dbg_print("AccelStatus = ");
+    dbg_printlnm(AccelStatus, DEC);
 #endif
 
 #if COMPASS_ENABLE
+    // Enable the compass
+    navIf.setCompass(&imuCompass);
     // Configure the compass
     CompassStatus = imuCompass.begin();
-    Serial.print("CompassStatus = ");
-    Serial.println(CompassStatus, DEC);
+    dbg_print("CompassStatus = ");
+    dbg_printlnm(CompassStatus, DEC);
 #endif
 
 #if BARO_ENABLE
+    // Enable the barometer
+    navIf.setBarometer(&imuBarometer);
     // Configure the barometer
     BaroStatus = imuBarometer.begin();
-    Serial.print("BaroStatus = ");
-    Serial.println(BaroStatus, DEC);
+    dbg_print("BaroStatus = ");
+    dbg_printlnm(BaroStatus, DEC);
 #endif
 
     // Snapshot the timer, initialize the update and display timers
     currentMillis = millis();
     previousMillis = currentMillis;
     previousDisplayMillis = currentMillis;
-  
-    // Enable the SPI interrupt
-#if SPI_INT_ENABLE
-    SPI.attachInterrupt();
+
+    // Initialize the transport
+#if SPI_INT_ENABLE  
+    Status = navIf.begin(BENCH_TESTING);
+#else
+    Status = navIf.begin(57600, BENCH_TESTING);
 #endif
 
+  
+    dbg_println("Setup complete");
+    
+    delay(4000);
  
 }
 
@@ -409,160 +286,7 @@ void setup(void)
 // [buffer contents] value
 ISR(SPI_STC_vect)
 {
-    // Locals
-    byte spiReceivedData;                   // Data received from master
-    byte spiSentData;                       // Data loaded into the SPI buffer
-                                            // to be sent on the next clock
-    
-    // Increment the count
-    SPIInterruptCount++;
-    
-    // The nature of SPI guarantees we have some data
-    spiReceivedData = SPDR;
-    
-    // Process the interrupt based on the the input value 
-    // and the value of the last command byte
-    switch(spiReceivedData)
-    {
-        // Continuation command
-        case SPI_NAV_CONTINUE:
-        {
-            // Select current action on the previous command
-            switch(SPICommand)
-            {
-                // Continuation - In the process of sending nav data
-                case SPI_NAV_CONTINUE:
-                {
-                    // Skip if locked
-                    if(consumerEnable == false)
-                    {
-                        // Indicate nav data blocked
-                        spiSentData = STS_NAV_DATA_NREADY;
-                    }
-                    else
-                    {
-                        // Send the next data point
-                        spiSentData = *pSPIData++;
-                
-                        // See if complete
-                        consumerCount++;
-                        if(consumerCount > sizeof(NAV_DATA))
-                        {
-                            // Notify the main loop ready to switch
-                            consumerBusy = false;
-                            // Disable any re-sends
-                            consumerEnable = false;
-                        }
-                    }
-                    break;
-                }
-
-                // The first byte of nav data                
-                case SPI_NAV_DATA_DAT:
-                {
-                    // Skip if locked
-                    if(consumerEnable == false)
-                    {
-                        spiSentData = STS_NAV_DATA_NREADY;
-                    }
-                    else
-                    {
-                        // Send the first data point
-                        spiSentData = *pSPIData++;
-                
-                        // See if complete
-                        consumerCount++;
-                        if(consumerCount > sizeof(NAV_DATA))
-                        {
-                            // Notify the main loop ready to switch
-                            consumerBusy = false;
-                            // Disable any re-sends
-                            consumerEnable = false;
-                        }
-                    }
-                    SPICommand = 0;
-                    break;
-                }
-
-                // Nav data status was requested and preloaded                
-                case SPI_NAV_DATA_STS:
-                {
-                    // Check for lock
-                    if(consumerEnable == true)
-                    {
-                        // Data available, set up state machine
-                        spiSentData = STS_NAV_DATA_READY;
-                        pSPIData = (unsigned char*)consumer;
-                        consumerCount = 0;
-                        consumerBusy = true;
-                    }
-                    else
-                    {
-                        // Data not ready yet
-                        spiSentData = STS_NAV_DATA_NREADY;
-                    }
-                    SPICommand = 0;
-                    break;
-                }
-            
-                default:
-                {
-                    // Send a known response
-                    spiSentData = 60;
-                }
-            }
-            break;
-        }           
-        
-        // Begin sending nav data
-        case SPI_NAV_DATA_DAT:        
-        {
-            // Capture the state
-            SPICommand = spiReceivedData;
-            // Send a unique response code
-            spiSentData = 50;
-            break;
-        }
-         
-        
-        // Requesting to reset the nav data origin
-        case SPI_SET_ORIGIN:
-        {
-            // Set the flag - always allowed
-            spiSetOrigin = true;
-            spiSentData = 40;
-            break;
-        }
-        
-        // Report whether new data is available
-        case SPI_NAV_DATA_STS:
-        {
-            // Capture the state
-            SPICommand = spiReceivedData;
-            spiSentData = STS_NAV_DATA_NREADY;
-            if(consumerEnable == true)
-            {
-                spiSentData = STS_NAV_DATA_READY;
-            }
-            break;
-        }
-        
-        // Illegal command - send bad status
-        default:
-        {
-            spiSentData = SPI_ILLEGAL_REGISTER;
-            SPICommand = 0;
-        }
-    }// End switch 
-    
-    // Preload the new byte to be sent on the next clock
-    SPDR = spiSentData;
-    
-#if BENCH_TESTING
-    Serial.print("Rcvd:  "); Serial.println(spiReceivedData, DEC);
-    Serial.print("Sent:  "); Serial.println(spiSentData, DEC);
-#endif
-       
+    navIf.SPIisr();
 }
 #endif 
 
@@ -571,53 +295,12 @@ void loop(void)
 {
     // Locals
     int         imuStatus;
-    int         rxCount;
+    int         navCommand;
     boolean     Display = false;
-    NAV_DATA*   nDP;
-    byte*       nDPb;
-    int         i;
-    
-#if SUART_ENABLE
-    // Set up the UART to listen for a new request
-    navUart.listen();
-    rxCount = navUart.available();
-    if(rxCount)
-    {
-        // Read the first byte as the command
-        navCommand = navUart.read();
-        
-        // Process the command
-        switch(navCommand)
-        {
-            case NAV_SET_ORIGIN:
-            {
-#if BENCH_TESTING
-                Serial.println("Origin Set");
-#endif
 
-#if ACCEL_ENABLE
-                imuAccel.setOrigin();
-#endif
-
-#if GYRO_ENABLE
-                imuGyro.setOrigin();
-#endif
-                break;
-            }
-                
-            case NAV_RUN_POST:
-            {
-// TODO - future support
-                break;
-            }
-            
-            default:
-            {
-                Serial.println("Illegal Nav command received!");
-                navUart.write(NAV_ILLEGAL_COMMAND);
-            }
-        }// end switch
-    }
+    // Process any commands
+    navCommand = navIf.getNavCommand();
+    imuStatus = navIf.processNavCommand(navCommand);
         
     // Update the interval timers    
     currentMillis = millis();
@@ -637,373 +320,23 @@ void loop(void)
         // Restart the timer
         ArduinoHeartBeat++;
         previousHBMillis = currentMillis;
-#if BENCH_TESTING
-        Serial.print("HB = "); Serial.println(ArduinoHeartBeat);
-        delay(10);
-#endif
+        dbg_print("HB = "); dbg_println(ArduinoHeartBeat);
     }
 
     // Update nav data every 10 ms
     if(eTime >= interval)
     {
-        // Reset the pointer
-        nDP = (NAV_DATA*)navPtr;
+        imuStatus = navIf.update(Display);
         
         // Restart interval timer
         previousMillis = currentMillis;
         
-        // Process the IMU sensors
-
-#if ACCEL_ENABLE  
-        // Process any new accelerometer data
-        imuStatus = imuAccel.ProcessAccelData();
-        
-#if NAV_DATA_TEST
-        // Skip this step
-#else
-        // If no errors update the buffer
-        if(imuStatus == 0)
-        {
-            // Split the 16-bit values into 2 8-bit values
-            nDP->Position_X_MSB = highByte(imuAccel.getPositionX());
-            nDP->Position_X_LSB = lowByte(imuAccel.getPositionX());
-            nDP->Position_Y_MSB = highByte(imuAccel.getPositionY());
-            nDP->Position_Y_LSB = lowByte(imuAccel.getPositionY());
-        }
-        else
-        {
-            // Indicate data invalid
-            nDP->Position_X_MSB = 0xFF;
-            nDP->Position_X_LSB = 0xFF;
-            nDP->Position_Y_MSB = 0xFF;
-            nDP->Position_Y_LSB = 0xFF;
-        }
-#if BENCH_TESTING
-        // Check if display update elapsed
-        if(Display)
-        {
-            // Display debug information
-            Serial.print("Position X     = "); Serial.println(imuAccel.getPositionX(), DEC);
-            Serial.print("Position Y     = "); Serial.println(imuAccel.getPositionY(), DEC);
-            delay(500);
-        }
-#endif
-#endif
-#endif
-
-#if GYRO_ENABLE
-        // Process any new Gyroscope data
-        imuStatus = imuGyro.ProcessGyroData();
-        
-#if NAV_DATA_TEST
-        // skip this step
-#else
-        // If no errors update the buffer
-        if(imuStatus == 0)
-        {
-            // Update the nav buffer
-            nDP->Heading_MSB = highByte(imuGyro.getHeading());
-            nDP->Heading_LSB = lowByte(imuGyro.getHeading());
-            nDP->Pitch_MSB = highByte(imuGyro.getPitch());
-            nDP->Pitch_LSB = lowByte(imuGyro.getPitch());
-        }
-        else
-        {
-            // indicate data invalid
-            nDP->Heading_MSB = 0xFF;
-            nDP->Heading_LSB = 0xFF;
-            nDP->Pitch_MSB = 0xFF;
-            nDP->Pitch_LSB = 0xFF;
-        }
-
-#if BENCH_TEST
-        // Check if display update elapsed
-        if(Display)
-        {
-            // Display debug information
-            Serial.print("Heading   = "); Serial.println(imuGyro.getHeading(), DEC);
-            Serial.print("Pitch     = "); Serial.println(imuGyro.getPitch(), DEC);
-            delay(500);
-        }
-        
-#endif
-#endif
-#endif
-
-        // Compass: not supported for this application
-       
-        // Barometer: not supported for this application
-        
-#if RANGES_ENABLE
-
-        // Process the range sensor data    
-        rangeSensor0.ReadRange();
-        rangeSensor1.ReadRange();
-        rangeSensor2.ReadRange();
-        rangeSensor3.ReadRange();
-        rangeSensor4.ReadRange();
-    
-#if NAV_DATA_TEST
-        // skip this step
-#else
-        // Update the buffer
-        nDP->Range_0_MSB = highbyte(rangeSensor0.getRange());
-        nDP->Range_0_LSB = lowbyte(rangeSensor0.getRange());
-        nDP->Range_1_MSB = highbyte(rangeSensor1.getRange());
-        nDP->Range_1_LSB = lowbyte(rangeSensor1.getRange());
-        nDP->Range_2_MSB = highbyte(rangeSensor2.getRange());
-        nDP->Range_2_LSB = lowbyte(rangeSensor2.getRange());
-        nDP->Range_3_MSB = highbyte(rangeSensor3.getRange());
-        nDP->Range_3_LSB = lowbyte(rangeSensor3.getRange());
-        nDP->Range_4_MSB = highbyte(rangeSensor4.getRange());
-        nDP->Range_4_LSB = lowbyte(rangeSensor4.getRange());
-
-#if BENCH_TESTING
-        // Check to see if display interval has elapsed
-        if(Display)
-        {
-            Serial.print("Range 0 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            Serial.print("Range 1 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            Serial.print("Range 2 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            Serial.print("Range 3 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            Serial.print("Range 4 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            delay(500);
-        }
-#endif
-#endif
-#endif
-
-        // Send the data to the software UART
-        nDPb = (byte*)nDP;
-        // Skip the sync byte
-        nDPb++;
-        navUart.write(navBarkerCode);
-        for(i=1; i < sizeof(NAV_DATA); i++)
-        {
-            navUart.write(*nDPb++);
-        }
-        // Alternate for the next frame
-        navBarkerCode = !navBarkerCode;
-    }
-        
-        
-#else // SUART_ENABLE
-
-    // Always check if the nav data should be reset
-    if(spiSetOrigin == true)
-    {
-#if BENCH_TESTING
-        Serial.println("Origin Set");
-#endif
-
-#if ACCEL_ENABLE
-        imuAccel.setOrigin();
-#endif
-
-#if GYRO_ENABLE
-        imuGyro.setOrigin();
-#endif
-        spiSetOrigin = false;
-    }
-
-    // Update the interval timers    
-    currentMillis = millis();
-    eTime = currentMillis - previousMillis;
-    deTime = currentMillis - previousDisplayMillis;
-    hbTime = currentMillis - previousHBMillis;
-    
-    if(deTime >= debug_interval)
-    {
-        Display = true;
-        previousDisplayMillis = currentMillis;
-    }
-    
-    // Update the heart beat every second
-    if(hbTime >= hbInterval)
-    {
-        // Restart the timer
-        ArduinoHeartBeat++;
-        previousHBMillis = currentMillis;
-#if BENCH_TESTING
-        Serial.print("HB = "); Serial.println(ArduinoHeartBeat);
-        delay(10);
-#endif
-    }
-
-#if BENCH_TESTING
-    // See if there is a new SPI interrupt
-    if(Display)
-    {
-        Serial.print("SPI count = "); Serial.println(SPIInterruptCount);
-        previousDisplayMillis = currentMillis;
-    }
-#endif
-    
-    // Update nav data every 10 ms
-    if(eTime >= interval)
-    {
-        // Restart interval timer
-        previousMillis = currentMillis;
-        
-        // Process the IMU sensors
-
-#if ACCEL_ENABLE  
-        // Process any new accelerometer data
-        imuStatus = imuAccel.ProcessAccelData();
-        
-#if NAV_DATA_TEST
-        // Skip this step
-#else
-        // If no errors update the buffer
-        if(imuStatus == 0)
-        {
-            // Split the 16-bit values into 2 8-bit values
-            producer->Position_X_MSB = highByte(imuAccel.getPositionX());
-            producer->Position_X_LSB = lowByte(imuAccel.getPositionX());
-            producer->Velocity_X_MSB = highByte(imuAccel.getVelocityX());
-            producer->Velocity_X_LSB = lowByte(imuAccel.getVelocityX());
-            producer->Accel_X_MSB = highByte(imuAccel.getAccelerationX());
-            producer->Accel_X_LSB = lowByte(imuAccel.getAccelerationX());
-            producer->Position_Y_MSB = highByte(imuAccel.getPositionY());
-            producer->Position_Y_LSB = lowByte(imuAccel.getPositionY());
-            producer->Velocity_Y_MSB = highByte(imuAccel.getVelocityY());
-            producer->Velocity_Y_LSB = lowByte(imuAccel.getVelocityY());
-            producer->Accel_Y_MSB = highByte(imuAccel.getAccelerationY());
-            producer->Accel_Y_LSB = lowByte(imuAccel.getAccelerationY());
-        }
-        else
-        {
-            // Indicate data invalid
-            producer->Position_X_MSB = 0xFF;
-            producer->Position_X_LSB = 0xFF;
-            producer->Velocity_X_MSB = 0xFF;
-            producer->Velocity_X_LSB = 0xFF;
-            producer->Accel_X_MSB = 0xFF;
-            producer->Accel_X_LSB = 0xFF;
-            producer->Position_Y_MSB = 0xFF;
-            producer->Position_Y_LSB = 0xFF;
-            producer->Velocity_Y_MSB = 0xFF;
-            producer->Velocity_Y_LSB = 0xFF;
-            producer->Accel_Y_MSB = 0xFF;
-            producer->Accel_Y_LSB = 0xFF;
-        }
-#if BENCH_TESTING
-        // Check if display update elapsed
-        if(Display)
-        {
-            // Display debug information
-            Serial.print("Acceleration X = "); Serial.println(imuAccel.getAccelerationX(), DEC);
-            Serial.print("Velocity X     = "); Serial.println(imuAccel.getVelocityX(), DEC);
-            Serial.print("Position X     = "); Serial.println(imuAccel.getPositionX(), DEC);
-            Serial.print("Acceleration Y = "); Serial.println(imuAccel.getAccelerationY(), DEC);
-            Serial.print("Velocity Y     = "); Serial.println(imuAccel.getVelocityY(), DEC);
-            Serial.print("Position Y     = "); Serial.println(imuAccel.getPositionY(), DEC);
-            delay(500);
-        }
-#endif
-#endif
-#endif
-
-#if GYRO_ENABLE
-        // Process any new Gyroscope data
-        imuStatus = imuGyro.ProcessGyroData();
-        
-#if NAV_DATA_TEST
-        // skip this step
-#else
-        // If no errors update the buffer
-        if(imuStatus == 0)
-        {
-            // Update the nav buffer
-            producer->Heading_MSB = highByte(imuGyro.getHeading());
-            producer->Heading_LSB = lowByte(imuGyro.getHeading());
-            producer->Pitch_MSB = highByte(imuGyro.getPitch());
-            producer->Pitch_LSB = lowByte(imuGyro.getPitch());
-        }
-        else
-        {
-            // indicate data invalid
-            producer->Heading_MSB = 0xFF;
-            producer->Heading_LSB = 0xFF;
-            producer->Pitch_MSB = 0xFF;
-            producer->Pitch_LSB = 0xFF;
-        }
-
-#if BENCH_TEST
-        // Check if display update elapsed
-        if(Display)
-        {
-            // Display debug information
-            Serial.print("Heading   = "); Serial.println(imuGyro.getHeading(), DEC);
-            Serial.print("Pitch     = "); Serial.println(imuGyro.getPitch(), DEC);
-            delay(500);
-        }
-        
-#endif
-#endif
-#endif
-
-        // Compass: not supported for this application
-       
-        // Barometer: not supported for this application
-        
-#if RANGES_ENABLE
-
-        // Process the range sensor data    
-        rangeSensor0.ReadRange();
-        rangeSensor1.ReadRange();
-        rangeSensor2.ReadRange();
-        rangeSensor3.ReadRange();
-        rangeSensor4.ReadRange();
-    
-#if NAV_DATA_TEST
-        // skip this step
-#else
-        // Update the buffer
-        producer->Range_0_MSB = highbyte(rangeSensor0.getRange());
-        producer->Range_0_LSB = lowbyte(rangeSensor0.getRange());
-        producer->Range_1_MSB = highbyte(rangeSensor1.getRange());
-        producer->Range_1_LSB = lowbyte(rangeSensor1.getRange());
-        producer->Range_2_MSB = highbyte(rangeSensor2.getRange());
-        producer->Range_2_LSB = lowbyte(rangeSensor2.getRange());
-        producer->Range_3_MSB = highbyte(rangeSensor3.getRange());
-        producer->Range_3_LSB = lowbyte(rangeSensor3.getRange());
-        producer->Range_4_MSB = highbyte(rangeSensor4.getRange());
-        producer->Range_4_LSB = lowbyte(rangeSensor4.getRange());
-
-#if BENCH_TESTING
-        // Check to see if display interval has elapsed
-        if(Display)
-        {
-            Serial.print("Range 0 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            Serial.print("Range 1 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            Serial.print("Range 2 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            Serial.print("Range 3 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            Serial.print("Range 4 = "); Serial.println(rangeSensor0.getRange(), DEC);
-            delay(500);
-        }
-#endif
-#endif
-#endif
-  
         // Switch nav data buffers
-        while(consumerBusy)
-        {
-            // at 500 KHz 16 usec per byte, so wait 20 usecs each time
-            delayMicroseconds(20);
-        }
-        // Critical section
-        SPI.detachInterrupt();                  // disable SPI interrupt
-        consumerEnable = false;                 // lock ISR
-        pTemp = consumer;                       // swap pointers
-        consumer = producer;
-        pSPIData = (unsigned char*)consumer;
-        producer = pTemp;
-        consumerEnable = true;                  // unlock ISR
-        SPI.attachInterrupt();                  // enable SPI interrupt
+        navIf.switchBuffers();
     }
     
-#endif
+    Display = 0;
+    
     // And do it again, and again, ...
 }
 
