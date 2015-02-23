@@ -128,7 +128,7 @@ class NavUart : public SoftwareSerial
         // Methods
         NavUart(int, int, bool);            // Constructor
        ~NavUart();                          // Destructor
-        int 	begin(int, int)     ;       // class specific initialization
+        int 	begin(unsigned long, int);  // class specific initialization
         int 	update(bool);               // update the nav data
         void 	switchBuffers(void);        // wrapper function for consistent API
 		int 	getNavCommand(void);        // get any new command from host

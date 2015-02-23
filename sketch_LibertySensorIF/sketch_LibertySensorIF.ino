@@ -177,20 +177,26 @@ int             CompassStatus;
 int             BaroStatus;
 
 // Sample timing variables
+// Nav data update state
 unsigned long   previousMillis;
 unsigned long   currentMillis;
 unsigned long   eTime;                      // elapsed time in ms
-unsigned long   interval = 10;              // 10 ms update rate
-unsigned long   debug_interval = 1000;      // 2 second display rate
+unsigned long   updateInterval = 10;        // 10 ms update rate
+boolean         upDate = false;
+unsigned long   updateCount = 0;
+
+// Display update state
+unsigned long   debug_interval = 1000;      // 1 second display rate
 unsigned long   previousDisplayMillis;
 unsigned long   deTime;                     // for debug display
+boolean         Display = false;
 
-
-// Health monitoring
+// Arduino heartbeart
 unsigned long   ArduinoHeartBeat;           // heart beat variable
 unsigned long   previousHBMillis;           // heart beat update 1Hz
 unsigned long   hbTime;
 unsigned long   hbInterval = 1000;
+boolean         hbUpdate = false;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -261,18 +267,18 @@ void setup(void)
     currentMillis = millis();
     previousMillis = currentMillis;
     previousDisplayMillis = currentMillis;
-
+    previousHBMillis = currentMillis;
+    
     // Initialize the transport
 #if SPI_INT_ENABLE  
     Status = navIf.begin(BENCH_TESTING);
 #else
     Status = navIf.begin(57600, BENCH_TESTING);
 #endif
-
   
     dbg_println("Setup complete");
-    
-    delay(4000);
+    dbg_println("==============");
+    delay(400);
  
 }
 
@@ -294,11 +300,19 @@ ISR(SPI_STC_vect)
 void loop(void)
 {
     // Locals
-    int         imuStatus;
-    int         navCommand;
-    boolean     Display = false;
+    int              imuStatus;
+    int              navCommand;
+    int              i;
+    
+    // loop() gets called in an outer loop
+    // so all the locals are volatile!
+    
+    // Initialize flags
+    Display = false;
+    upDate = false;
+    hbUpdate = false;
 
-    // Process any commands
+    // Process any commands every call
     navCommand = navIf.getNavCommand();
     imuStatus = navIf.processNavCommand(navCommand);
         
@@ -307,37 +321,55 @@ void loop(void)
     eTime = currentMillis - previousMillis;
     deTime = currentMillis - previousDisplayMillis;
     hbTime = currentMillis - previousHBMillis;
-    
+
+    // Set the flags depending on the elapsed time    
     if(deTime >= debug_interval)
     {
         Display = true;
         previousDisplayMillis = currentMillis;
     }
     
-    // Update the heart beat every second
+    if(eTime >= updateInterval)
+    {
+        upDate = true;
+        previousMillis = currentMillis;
+    }
+    
     if(hbTime >= hbInterval)
     {
-        // Restart the timer
-        ArduinoHeartBeat++;
+        hbUpdate = true;
         previousHBMillis = currentMillis;
+    }
+    
+    // Update the heartbeat on the HB interval
+    if(hbUpdate)
+    {
+        ArduinoHeartBeat++;
         dbg_print("HB = "); dbg_println(ArduinoHeartBeat);
     }
-
-    // Update nav data every 10 ms
-    if(eTime >= interval)
+    
+    if(Display)
     {
+        dbg_print("updateCount = "); dbg_println(updateCount);
+    }
+    
+    // Update the nav data on the update interval
+    if(upDate)
+    {
+        // Increment debug counter
+        updateCount++;
+       
+        // Refresh the currect nav data buffer
         imuStatus = navIf.update(Display);
-        
-        // Restart interval timer
-        previousMillis = currentMillis;
         
         // Switch nav data buffers
         navIf.switchBuffers();
     }
     
-    Display = 0;
-    
-    // And do it again, and again, ...
+    if(Display)
+    {
+        Serial.print("Status = "); Serial.println(imuStatus);
+    }
 }
 
 // End if LibertySensorIF.ino

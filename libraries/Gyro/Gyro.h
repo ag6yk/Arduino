@@ -36,7 +36,7 @@
 // Define the requested support
 #define	YAW_ENABLE		1
 #define ROLL_ENABLE		0
-#define PITCH_ENABLE	0
+#define PITCH_ENABLE	1
 
 struct GYRO_DATA_BLOCK
 {
@@ -215,6 +215,7 @@ class Gyro : public Sensor
         signed short		_gRoll;		// Roll relative to robot level
 
         int                 flush();    // clear all gyroscope fifos
+        int					resetFifos();
 
     public:
         Gyro();                     	// Constructor

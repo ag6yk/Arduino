@@ -437,6 +437,8 @@ int Accel::ComputeXoft(NUM_BUFFER *n, signed short* computedValue)
     newPosition = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newPosition;
+    // TODO: Scale the value to 1/16th inch units
+
     // Return the new value
     *computedValue = (signed short)n->t0;
     return 0;
@@ -450,6 +452,7 @@ int Accel::ProcessAccelData(int test)
 	int failSafe;
 	int lStatus;
 	int i;
+	int displayCount;
 
 	// Read the FIFO count. If the processor throughput
 	// is what we believe, there should be 8 samples in each of
@@ -468,13 +471,50 @@ int Accel::ProcessAccelData(int test)
 		}
 	}
 
-	if(test)
-	{
-		Serial.println("Accel FIFO ready");
-	}
-
 	// FIFO is ready, read 8 samples of data
 	lStatus = ReadXYZ();
+
+	if(0)
+	{
+		Serial.println("Accel FIFO data...");
+		displayCount = 0;
+    	for(i = 0; i < fCount; i++)
+    	{
+    		Serial.print(":Xddot   = "); Serial.print(_aXvector[i], DEC);
+    		displayCount++;
+    		if(displayCount > 4)
+    		{
+    			displayCount = 0;
+    			Serial.println();
+    		}
+    	}
+    	Serial.println();
+    	displayCount = 0;
+    	for(i=0; i < fCount; i++)
+    	{
+    		Serial.print(":Yddot   = "); Serial.print(_aYvector[i], DEC);
+    		displayCount++;
+    		if(displayCount > 4)
+    		{
+    			displayCount = 0;
+    			Serial.println();
+    		}
+    	}
+    	Serial.println();
+    	displayCount = 0;
+    	for(i=0; i < fCount; i++)
+    	{
+    		Serial.print(":Zddot   = "); Serial.print(_aZvector[i], DEC);
+    		displayCount ++;
+    		if(displayCount > 4)
+    		{
+    			displayCount = 0;
+    			Serial.println();
+    		}
+    	}
+    	Serial.println();
+
+	}
 
 	// Increment the sample count
 	_aSampleCount++;

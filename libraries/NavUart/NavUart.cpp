@@ -55,6 +55,8 @@ NavUart::NavUart(int rx, int tx, bool lsense): SoftwareSerial(rx, tx, lsense)
 	_sensor0 = 0;
 	_sensor1 = 0;
 
+	SoftwareSerial(rx, tx, lsense);
+
 }
 
 // Destructor
@@ -64,8 +66,9 @@ NavUart::~NavUart()
 }
 
 // Class specific initializations
-int NavUart::begin(int baudRate, int test )
+int NavUart::begin(unsigned long baudRate, int test )
 {
+	Serial.print("NavUart::begin - Baudrate: "); Serial.println(baudRate);
 	// Pass through to the software serial
 	SoftwareSerial::begin(baudRate);
 
@@ -252,19 +255,37 @@ int NavUart::update(bool test)
 		Status += imuStatus;
 	}
 
-	// Write the data to the host
 
 	// Re-Initialize the local pointer
 	nDPb = (byte*)nDP;
-	// Skip the sync byte
-	nDPb++;
-	this->write(navBarkerCode);
-	for(i = 1; i < sizeof(NAV_DATA); i++)
+	nDP->NavSync = navBarkerCode;
+	nDP->NavEoF = NAV_ENDOF_FRAME;
+
+	Status = 0;
+	for(i = 0; i < sizeof(NAV_DATA); i++)
 	{
+		if(test)
+		{
+			Serial.print(*nDPb, HEX);
+		}
+		Status++;
 		this->write(*nDPb++);
 	}
+	if(test)
+	{
+		Serial.println();
+	}
+	Status++;
+
 	// Compute the alternating code for the next frame
-	navBarkerCode = !navBarkerCode;
+	if(navBarkerCode == NAV_SYNC_NOINVERT)
+	{
+		navBarkerCode = NAV_SYNC_INVERT;
+	}
+	else
+	{
+		navBarkerCode = NAV_SYNC_NOINVERT;
+	}
 
 	return(Status);
 

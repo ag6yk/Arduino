@@ -124,7 +124,7 @@ int Gyro::begin(void)
     // FIFO watermark disable
     // FIFO overrun disable
     // FIFO Empty disable
-    // 0b10000000
+    // 0b00000000
     Wire.write(byte(0x00));
   
     // Control register 4
@@ -263,6 +263,31 @@ int Gyro::available()
 	// Locals
     byte    i2cStatus;
 	byte	fifoCount = 0;
+	byte	gyroStatus;
+
+	// Filter bad data
+	Wire.beginTransmission(_i2cAddress);
+	Wire.write(byte(G_STATUS_REG));
+	i2cStatus = Wire.endTransmission();
+	if(i2cStatus)
+	{
+		goto gyroAvailableError;
+	}
+
+	Wire.requestFrom(_i2cAddress, byte(1));
+	if(waitForI2CResponse(byte(1)) == false)
+	{
+		// Return a count of 0 for timeout
+		return 0;
+	}
+
+	// Check if any new data is available
+	gyroStatus = Wire.read();
+	if((gyroStatus & G_ZXYDA) == 0)
+	{
+		// Return with a count of 0, no data
+		return 0;
+	}
 
 	// Read the fifo register
 	Wire.beginTransmission(_i2cAddress);
@@ -282,6 +307,7 @@ int Gyro::available()
 
 	// Read the FIFO count
 	fifoCount = Wire.read();
+
 	fifoCount &= G_FIFO_COUNT;
 	// Save for use by other members
 	_gfifoCount = fifoCount;
@@ -306,6 +332,7 @@ int Gyro::ReadGyroData()
 	unsigned char lsbTemp;
 	unsigned char msbTemp;
 	unsigned short temp;
+	int imuStatus;
 
 	// Compute the final index based on the fifo count
 	// This will cause the 0th element of each vector
@@ -314,8 +341,9 @@ int Gyro::ReadGyroData()
 	for(i = (_gfifoCount); i > 0; i--)
 	{
 	    // Point to the X axis rotational data FIFO
+		// Set up for multi-byte access
         Wire.beginTransmission(_i2cAddress);
-        Wire.write(byte(G_OUT_X_L));
+        Wire.write(byte(G_OUT_X_L | 0x80));
         Wire.endTransmission();
         // Block read the first element
         Wire.requestFrom(_i2cAddress, sizeof(GYRO_DATA_BLOCK));
@@ -353,8 +381,10 @@ int Gyro::ReadGyroData()
         temp = (unsigned short)((msbTemp << 8) + lsbTemp);
         // Convert and store as a signed value
         _gOyVector[i-1] = (signed short)temp;
-
 	}
+
+	// Reset the FIFOs for another sample period
+	resetFifos();
 
 	// Success
 	return 0;
@@ -371,6 +401,7 @@ int Gyro::ComputeRoll(NUM_BUFFER *n, signed short* computedValue)
 	newRoll = trapIntegral(n->tn, n->tn1);
 	// Add to the accumulator
 	n->t0 = n->t0 + newRoll;
+	// TODO: Scale to degrees
 	// Return the new value
 	*computedValue = (signed short)n->t0;
 	return 0;
@@ -387,6 +418,7 @@ int Gyro::ComputePitch(NUM_BUFFER *n, signed short* computedValue)
     newPitch = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newPitch;
+    // TODO: Scale to degrees
     // Return the new value
     *computedValue = (signed short)n->t0;
     return 0;
@@ -403,6 +435,7 @@ int Gyro::ComputeHeading(NUM_BUFFER *n, signed short* computedValue)
     newHeading = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newHeading;
+    // TODO: Scale to degrees
     // Return the new value
     *computedValue = (signed short)n->t0;
     return 0;
@@ -416,6 +449,7 @@ int Gyro::ProcessGyroData(bool test)
     int failSafe;
     int lStatus;
     int i;
+    int displayCount = 0;
 
     // Read the FIFO count. If the processor throughput is what
     // we believe, there should be at least one sample in each of the
@@ -436,7 +470,43 @@ int Gyro::ProcessGyroData(bool test)
 
     if(test)
     {
-    	Serial.println("Gyro FIFO ready");
+		Serial.println("Gyro FIFO data...");
+		displayCount = 0;
+    	for(i = 0; i < fCount; i++)
+    	{
+    		Serial.print(":Rolldot =  "); Serial.print(_gOrVector[i], DEC);
+    		displayCount++;
+    		if(displayCount > 4)
+    		{
+    			displayCount = 0;
+    			Serial.println();
+    		}
+    	}
+    	displayCount = 0;
+    	Serial.println();
+    	for(i=0; i < fCount; i++)
+    	{
+    		Serial.print("Yawdot = "); Serial.println(_gOyVector[i], DEC);
+    		displayCount++;
+    		if(displayCount > 4)
+    		{
+    			displayCount = 0;
+    			Serial.println();
+    		}
+    	}
+    	displayCount = 0;
+    	Serial.println();
+    	for(i=0; i < fCount; i++)
+    	{
+    		Serial.print("Pitdot =  "); Serial.println(_gOpVector[i], DEC);
+    		displayCount++;
+    		if(displayCount > 4)
+    		{
+    			displayCount = 0;
+    			Serial.println();
+    		}
+    	}
+    	Serial.println();
     }
 
     // FIFO is ready, read the data
@@ -513,6 +583,35 @@ signed short Gyro::getdPitch()
 signed short Gyro::getdYaw()
 {
     return _gdYaw;
+}
+
+// Reset the gyroscope FIFOs
+int Gyro::resetFifos()
+{
+	// Locals
+	int i2cStatus;
+
+	// Reset the FIFOs
+	// put FIFOs into Bypass mode
+    Wire.beginTransmission(_i2cAddress);
+    Wire.write(byte(G_FIFO_C_REG));
+    Wire.write(byte(0x00));
+    i2cStatus = Wire.endTransmission();
+    if(i2cStatus != 0)
+    {
+    	return -1;
+    }
+    // put FIFOs back into FIFO mode
+    Wire.beginTransmission(_i2cAddress);
+    Wire.write(byte(G_FIFO_C_REG));
+    Wire.write(byte(0x30));
+    i2cStatus = Wire.endTransmission();
+    if(i2cStatus != 0)
+    {
+    	return -2;
+    }
+
+    return 0;
 }
 
 // Flush the gyroscope FIFOs
