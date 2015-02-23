@@ -49,9 +49,9 @@ Accel::Accel()
     }
 
     _afifoCount = 0;                        // FIFO depth
-    _aVvalid = false;                       // computation eanble flags
+    _aVvalid = false;                       // computation enable flags
     _aPvalid = false;
-    _aSampleCount = 0;                      // computaiton sample count
+    _aSampleCount = 0;                      // computation sample count
     _aVComputingX.t0 = 0;                   // computation accumulators
     _aVComputingX.tn = 0;
     _aVComputingX.tn1 = 0;

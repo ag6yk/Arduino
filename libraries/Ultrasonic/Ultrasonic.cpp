@@ -73,6 +73,11 @@ int Ultrasonic::ReadRange(bool test)
 		return(0xFFFF);
 	}
 
+	if(test)
+	{
+		Serial.print("Tprop = "); Serial.println(Tprop);
+	}
+
 	// Convert to inches
 	// X/148 = inches
 

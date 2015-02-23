@@ -229,7 +229,7 @@ class Gyro : public Sensor
         int ComputeHeading(NUM_BUFFER *n, signed short *computedValue);
         // Compute pitch (integrate omega p)
         int ComputePitch(NUM_BUFFER *n, signed short *computedValue);
-        // Comupte roll (integrate omega r)
+        // Compute roll (integrate omega r)
         int ComputeRoll(NUM_BUFFER *n, signed short *computedValue);
 
         int ProcessGyroData(bool);      // Process pitch and yaw rates

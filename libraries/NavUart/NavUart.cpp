@@ -68,7 +68,6 @@ NavUart::~NavUart()
 // Class specific initializations
 int NavUart::begin(unsigned long baudRate, int test )
 {
-	Serial.print("NavUart::begin - Baudrate: "); Serial.println(baudRate);
 	// Pass through to the software serial
 	SoftwareSerial::begin(baudRate);
 

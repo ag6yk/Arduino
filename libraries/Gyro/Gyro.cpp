@@ -360,10 +360,12 @@ int Gyro::ReadGyroData()
 
         // Read from fifo LSB/MSB order
 
-        // Read the roll rate data, done do anything with it but
-        // it is in the buffer due to the autoincrement feature
+        // Read the roll rate data
         lsbTemp = Wire.read();
         msbTemp = Wire.read();
+        // Convert to a 16-bit value
+        temp = (unsigned short)((msbTemp << 8) + lsbTemp);
+        // Convert and store as a signed value
         _gOrVector[i-1] = (signed short)temp;
 
         // Read the pitch rate data

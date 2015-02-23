@@ -66,6 +66,9 @@ boolean Sensor::waitForI2CResponse(byte nBytes)
 	return false;
 }
 
+// These routines are not necessary for GCC-avr
+#if 0
+
 // Perform a right shift on a signed 32-bit value
 signed long Sensor::rsh_sgn32(signed long oldVal, int nbits)
 {
@@ -278,6 +281,8 @@ signed char Sensor::lsh_sgn8(signed char oldVal, int nbits)
 
 	return(newVal);
 }
+#endif
+
 
 // Execute a single pole low-pass filter on data stream
 signed short Sensor::DigFilter(signed short* Data0, signed short* Data1)
@@ -293,7 +298,8 @@ signed short Sensor::DigFilter(signed short* Data0, signed short* Data1)
 	// Which can be implemented using a right shift and subtraction
 	// Perform the shift after the subtraction to 1) retain sign and 2) precision
 	temp1 = *Data1 - *Data0;
-	temp2 = rsh_sgn16(temp1, 1);
+//	temp2 = rsh_sgn16(temp1, 1);
+	temp2 = temp1 >> 1;
 	return(temp2);
 }
 
@@ -321,7 +327,8 @@ signed short Sensor::AvgFilter(signed short* Data)
   }
 
   // Divide by 8 using shifts
-  lTemp = rsh_sgn32(lSum, 3);
+//  lTemp = rsh_sgn32(lSum, 3);
+  lTemp = lSum >> 3;
 
   // Truncate back to short
   filteredValue = (signed short)lTemp;
@@ -365,9 +372,16 @@ signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
 	temp1 = Data1 + Data0;
 
 	// Compute the delta T prime Horner polynomial on the accumulator term
+#if 0
 	temp2 = rsh_sgn16(temp1, INTEGRATE_FACTOR1);
 	temp3 = rsh_sgn16(temp1, INTEGRATE_FACTOR2);
 	temp4 = rsh_sgn16(temp1, INTEGRATE_FACTOR3);
+#else
+	temp2 = temp1 >> INTEGRATE_FACTOR1;
+	temp3 = temp1 >> INTEGRATE_FACTOR2;
+	temp4 = temp1 >> INTEGRATE_FACTOR3;
+#endif
+
 	// Compute the sum to determine the final integral
 	newVal = temp2 + temp3 + temp4;
 

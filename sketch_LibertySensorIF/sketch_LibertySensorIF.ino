@@ -263,6 +263,15 @@ void setup(void)
     dbg_printlnm(BaroStatus, DEC);
 #endif
 
+#if RANGES_ENABLE
+    // Enable the range sensors
+    navIf.setRangeSensor(&rangeSensor0, 0);
+    navIf.setRangeSensor(&rangeSensor1, 1);
+    navIf.setRangeSensor(&rangeSensor2, 2);
+    navIf.setRangeSensor(&rangeSensor3, 3);
+    navIf.setRangeSensor(&rangeSensor4, 4);
+#endif
+
     // Snapshot the timer, initialize the update and display timers
     currentMillis = millis();
     previousMillis = currentMillis;

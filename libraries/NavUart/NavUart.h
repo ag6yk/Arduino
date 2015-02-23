@@ -60,6 +60,8 @@ typedef unsigned char byte;
 
 // Define the Nav Data packet format to the host processor
 // Soft UART
+// All data is encoded as 16-bit signed integers but transmitted
+// as two unsigned bytes
 struct NAV_DATA
 {
     byte    NavSync;            // Alternating Barker code sync
