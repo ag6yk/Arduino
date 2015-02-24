@@ -30,39 +30,6 @@
 // DEFINES
 ////////////////////////////////////////////////////////////////////////////////
 
-// 100 Hz update rate
-#define	DELTATP_200HZ
-
-// Trapezoidal integration
-// Define the Horner coefficients for the intervals
-// 50 Hz Update rate - delta T prime of 100 Hz
-#ifdef	DELTATP_100HZ
-#define INTEGRATE_FACTOR1	7
-#define	INTEGRATE_FACTOR2	9
-#define INTEGRATE_FACTOR3   12
-#else
-// 100 Hz Update rate - delta T prime of 200 Hz
-#ifdef	DELTATP_200HZ
-#define INTEGRATE_FACTOR1	6
-#define INTEGRATE_FACTOR2	8
-#define INTEGRATE_FACTOR3   11
-#else
-// 200 Hz Update rate - delta T prime of 400 Hz
-#ifdef  DELTATP_400HZ
-#define INTEGRATE_FACTOR1   9
-#define INTEGRATE_FACTOR2   11
-#define INTEGRATE_FACTOR3   14
-#else
-// 400 Hz Update rate - delta T prime of 800 Hz
-#ifdef  DELTATP_800HZ
-#define INTEGRATE_FACTOR1   10
-#define INTEGRATE_FACTOR2   12
-#define INTEGRATE_FACTOR3   15
-#endif
-#endif
-#endif
-#endif
-
 // Define a numerical processing buffer for computing
 // the integral of a data stream
 struct NUM_BUFFER

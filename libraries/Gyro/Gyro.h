@@ -233,6 +233,7 @@ class Gyro : public Sensor
         int ComputeRoll(NUM_BUFFER *n, signed short *computedValue);
 
         int ProcessGyroData(bool);      // Process pitch and yaw rates
+        signed short scaleGyroData(signed short);
         signed short getHeading();      // accessors
         signed short getPitch();
         signed short getRoll();

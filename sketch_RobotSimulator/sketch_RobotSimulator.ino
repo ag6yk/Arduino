@@ -1,0 +1,98 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ROBOKONG 2493
+//  FRC 2015 - RECYCLING RUSH
+//
+//  CUSTOM ELECTRONICS
+//
+//  ARDUINO-BASED SENSOR ARRAY
+//
+///////////////////////////////////////////////////////////////////////////////
+/*!
+    @file   sketch_RobotSimulator.ino
+
+    @brief  This file contains the driver program for the RobotRIO simulator.
+    
+    @author Robert Cavanaugh, Engineering Mentor
+
+    @version    Revision History
+
+*/
+
+///////////////////////////////////////////////////////////////////////////////
+// CONFIGURATION
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// INCLUDES
+///////////////////////////////////////////////////////////////////////////////
+#include "Arduino.h"
+#include <SoftwareSerial.h>
+#include <NavUart.h>
+
+///////////////////////////////////////////////////////////////////////////////
+// DATA STRUCTURES
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+///////////////////////////////////////////////////////////////////////////////
+
+// Instantiate the soft uart
+SoftwareSerial    rUart(13, 12, false);
+
+unsigned long     rxCount;
+
+byte              navBuffer[128];
+
+signed short      Xposition;
+signed short      Yposition;
+signed short      Heading;
+signed short      Pitch;
+unsigned short    Range0;
+unsigned short    Range1;
+unsigned short    Range2;
+unsigned short    Range3;
+unsigned short    Range4;
+
+///////////////////////////////////////////////////////////////////////////////
+// FUNCTIONS
+///////////////////////////////////////////////////////////////////////////////
+
+
+void setup()
+{
+    // Locals
+    int i;
+    
+    // Initialize the debug serial port
+    Serial.begin(9600);
+    
+    // Initialize the software serial port
+    rUart.begin(57600);
+    
+    for(i=0; i < 128; i++)
+    {
+        navBuffer[i] = 0;
+    }
+    rxCount = 0;
+}
+
+void loop() 
+{
+    // Check for new nav data
+    rUart.listen();
+    
+    rxCount = rUart.available();
+    if(rxCount)
+    {
+        for(i=0; i < rxCount; i++)
+        {
+            navBuffer[i] = rUart.read();
+        }
+    }
+    
+    // START HERE
+
+}
+

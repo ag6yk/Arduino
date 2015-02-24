@@ -338,18 +338,14 @@ signed short Sensor::AvgFilter(signed short* Data)
 
 // Compute the integral for the input region
 // using the Trapezoidal approximation
-// TODO: Evaluate Simpson's rule
-// I(a,b) ~= (b-a)/6 * [f(a) + 4*(f(a+b/2) + f(b)]
-// TODO: Evaluate Simpson's 3/8 rule:
-// I(a,b) ~= (b-a)/8 * [f(a) + 3*f(2a+b/3) + 3*f(a+2b/3) + f(b)]
 signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
 {
 	// Locals
 	signed short	newVal;
-	signed short	temp1;
-	signed short	temp2;
-	signed short	temp3;
-	signed short    temp4;
+	signed long		fpAugend;
+	signed long		fpAddend;
+	signed long		fptemp;
+	signed long		fpIntegral;
 
 	// Estimate the integral over the region using the
 	// trapezoidal rule:
@@ -359,31 +355,28 @@ signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
 	// Let deltaT = tn - tn-1
 	// I(tn-1,t) ~= deltaT * [(f(tn) + f(tn-1))/2]
 	// deltaT is fixed in this application, therefore
-	// Horner's rule can be used to convert the multiplication
-	// of a fraction (i.e. division) into a series of shifts and
-	// additions.
-	// I(tn-1, t) ~= deltaTP * (f(tn-1) + f(tn))
-	// deltaTP (delta T prime) is deltaT / 2
-	// Use a three-term Horner polynomial for the division:
-	// x/H ~= (x >> FACTOR1) + (x >> FACTOR2) + (x >> FACTOR3)
-	// Depending on the update rate parameterize FACTORx
 
-	// Compute the accumulator term f(tn-1) + f(t)
-	temp1 = Data1 + Data0;
+	// Convert the inputs into fixed point Q16:16
+	fpAugend = (Data0 << 16);
+	fpAddend = (Data1 << 16);
 
-	// Compute the delta T prime Horner polynomial on the accumulator term
-#if 0
-	temp2 = rsh_sgn16(temp1, INTEGRATE_FACTOR1);
-	temp3 = rsh_sgn16(temp1, INTEGRATE_FACTOR2);
-	temp4 = rsh_sgn16(temp1, INTEGRATE_FACTOR3);
-#else
-	temp2 = temp1 >> INTEGRATE_FACTOR1;
-	temp3 = temp1 >> INTEGRATE_FACTOR2;
-	temp4 = temp1 >> INTEGRATE_FACTOR3;
-#endif
+	// Compute the numerator
+	fpAugend = fpAugend + fpAddend;
 
-	// Compute the sum to determine the final integral
-	newVal = temp2 + temp3 + temp4;
+	// Multiply by the time interval divide by 2
+	// For 100 Hz update rate, this translates to x/200
+	// This can be computed as x/4 * x/50
+	// Divide by 4 first
+	fpAugend >>= 2;
+	// Divide by 50
+	fpAugend >>= 1;
+
+	// Multiply by the time interval 1/100
+	fptemp = fpAugend / 50;
+
+	// Convert the result back to integer
+	fptemp >>= 16;
+	newVal = (signed short)fptemp;
 
 	return(newVal);
 

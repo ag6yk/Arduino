@@ -392,20 +392,43 @@ int Gyro::ReadGyroData()
 	return 0;
 }
 
+// Scale the Gyro data into degrees per second
+signed short Gyro::scaleGyroData(signed short input)
+{
+	// Scale is +/- 250 dps for 16-bit value
+	// So fixed point Q16:16 is pretty straightforward
+
+	// Locals
+	signed long fpMultiplicand = 250;
+	signed long fpFactor;
+	signed short newValue;
+
+	// Convert input into fixed point factor
+	fpFactor = (signed long)input;
+	// Multiply by the scaling factor
+	fpFactor = fpFactor * fpMultiplicand;
+	// Convert product back to integer
+	fpFactor >>=16;
+	newValue = (signed short)fpFactor;
+	return(newValue);
+}
+
 // Compute the roll from the sampled rotational velocity data
 // using numerical integration
 int Gyro::ComputeRoll(NUM_BUFFER *n, signed short* computedValue)
 {
 	// Locals
 	signed short newRoll;
+	signed short scaledRoll;
 
 	// Compute the new integral
 	newRoll = trapIntegral(n->tn, n->tn1);
 	// Add to the accumulator
 	n->t0 = n->t0 + newRoll;
-	// TODO: Scale to degrees
+	// Scale to degrees
+	scaledRoll = scaleGyroData((signed short)n->t0);
 	// Return the new value
-	*computedValue = (signed short)n->t0;
+	*computedValue = scaledRoll;
 	return 0;
 }
 
@@ -415,14 +438,16 @@ int Gyro::ComputePitch(NUM_BUFFER *n, signed short* computedValue)
 {
     // Locals
     signed short newPitch;
+    signed short scaledPitch;
 
     // Compute the new integral
     newPitch = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newPitch;
-    // TODO: Scale to degrees
+    // Scale to degrees
+    scaledPitch = scaleGyroData((signed short)n->t0);
     // Return the new value
-    *computedValue = (signed short)n->t0;
+    *computedValue = scaledPitch;
     return 0;
 }
 
@@ -432,14 +457,16 @@ int Gyro::ComputeHeading(NUM_BUFFER *n, signed short* computedValue)
 {
     // Locals
     signed short newHeading;
+    signed short scaledHeading;
 
     // Compute the new integral
     newHeading = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newHeading;
-    // TODO: Scale to degrees
+    // Scale to degrees
+    scaledHeading = scaleGyroData((signed short)n->t0);
     // Return the new value
-    *computedValue = (signed short)n->t0;
+    *computedValue = scaledHeading;
     return 0;
 }
 

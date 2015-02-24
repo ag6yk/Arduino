@@ -409,12 +409,32 @@ int Accel::ReadXYZ()
 	return 0;
 }
 
+// Scale the acceleration to the nearest 16th inch (tick)
+// Accelerometer scale is +/- 4mg
+// Lsb is 1.544352 ticks/sec^2
+// Use Q16:16 fixed point math
+signed short Accel::scaleAcceleration(signed short input)
+{
+	// Locals
+	signed long fpMultiplicand = 101211;	// 1.544352 in fixed point
+	signed long fpInput;
+	signed short newValue;
+
+	// Perform math in 32-bit values
+	fpInput = input;
+	fpInput = fpInput * fpMultiplicand;
+	// Convert back to integer
+	fpInput >>= 16;
+	newValue = (signed short)fpInput;
+	return(newValue);
+}
+
 // Compute the velocity from the sampled acceleration data
 // using numerical integration
 int Accel::ComputeVoft(NUM_BUFFER *n, signed short* computedValue)
 {
     // Locals
-    signed short newVelocity;
+    signed short 	newVelocity;
 
     // Compute the new integral
     newVelocity = trapIntegral(n->tn, n->tn1);
@@ -453,6 +473,7 @@ int Accel::ProcessAccelData(int test)
 	int lStatus;
 	int i;
 	int displayCount;
+	signed short temp;
 
 	// Read the FIFO count. If the processor throughput
 	// is what we believe, there should be 8 samples in each of
@@ -532,8 +553,10 @@ int Accel::ProcessAccelData(int test)
 	// i.e. 0th element is the most recent
 	// Perform signal averaging on the 8 most recent values
     // Skip Z axis for now
-	_accelerationX = AvgFilter(_aXvector);
-	_accelerationY = AvgFilter(_aYvector);
+	temp = AvgFilter(_aXvector);
+	_accelerationX = scaleAcceleration(temp);
+	temp = AvgFilter(_aYvector);
+	_accelerationY = scaleAcceleration(temp);
 
 	// Update the velocity numerical buffers
 	_aVComputingX.tn1 = _aVComputingX.tn;

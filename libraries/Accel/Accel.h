@@ -214,6 +214,7 @@ class Accel : public Sensor
 
         // Process acceleration data from sensor
         int ProcessAccelData(int);
+        signed short scaleAcceleration(signed short);
         signed short getAccelerationX();    // accessors
         signed short getAccelerationY();
         signed short getVelocityX();
