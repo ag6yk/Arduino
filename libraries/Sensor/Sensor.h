@@ -30,13 +30,17 @@
 // DEFINES
 ////////////////////////////////////////////////////////////////////////////////
 
+// Define a fixed point math type
+typedef	signed long	fpInt;
+
+
 // Define a numerical processing buffer for computing
 // the integral of a data stream
 struct NUM_BUFFER
 {
-	signed short	tn1;						// Value at t(n-1)
-	signed short	tn;							// Value at t(n)
-	signed long     t0;                         // accumulated value
+	fpInt	tn1;				// Value at t(n-1)
+	fpInt	tn;					// Value at t(n)
+	fpInt	t0;                 // accumulated value
 };
 
 // Define the sensor status bitmap
@@ -80,7 +84,7 @@ class Sensor
     // 8-sample signal averaging filter
     signed short AvgFilter(signed short* Data);
     // Compute the integral over the given region using the Trapezoidal approx.
-    signed short trapIntegral(signed short Data0, signed short Data1);
+    fpInt trapIntegral(fpInt Data0, fpInt Data1);
   
 };
 #endif

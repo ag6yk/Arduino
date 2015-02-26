@@ -338,14 +338,12 @@ signed short Sensor::AvgFilter(signed short* Data)
 
 // Compute the integral for the input region
 // using the Trapezoidal approximation
-signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
+fpInt Sensor::trapIntegral(fpInt Data0, fpInt Data1)
 {
 	// Locals
-	signed short	newVal;
-	signed long		fpAugend;
-	signed long		fpAddend;
-	signed long		fptemp;
-	signed long		fpIntegral;
+	fpInt			newVal;
+	fpInt			fpAugend;
+	fpInt			fpAddend;
 
 	// Estimate the integral over the region using the
 	// trapezoidal rule:
@@ -354,29 +352,20 @@ signed short Sensor::trapIntegral(signed short Data0, signed short Data1)
 	// where a and b are sample points on the curve, i.e. tn-1 and tn
 	// Let deltaT = tn - tn-1
 	// I(tn-1,t) ~= deltaT * [(f(tn) + f(tn-1))/2]
-	// deltaT is fixed in this application, therefore
 
 	// Convert the inputs into fixed point Q16:16
-	fpAugend = (Data0 << 16);
-	fpAddend = (Data1 << 16);
+	fpAugend = Data0;
+	fpAddend = Data1;
 
 	// Compute the numerator
 	fpAugend = fpAugend + fpAddend;
 
-	// Multiply by the time interval divide by 2
-	// For 100 Hz update rate, this translates to x/200
-	// This can be computed as x/4 * x/50
-	// Divide by 4 first
-	fpAugend >>= 2;
-	// Divide by 50
-	fpAugend >>= 1;
-
-	// Multiply by the time interval 1/100
-	fptemp = fpAugend / 50;
-
-	// Convert the result back to integer
-	fptemp >>= 16;
-	newVal = (signed short)fptemp;
+	// Now divide by 2 to get the average value
+	// and multiply by the time interval
+	// For a 100 Hz update rate this translates
+	// to x/200 which can be expressed as x/4*x/50
+	fpAugend = fpAugend >> 2;
+	newVal = fpAugend / 50;
 
 	return(newVal);
 

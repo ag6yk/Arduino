@@ -411,47 +411,48 @@ int Accel::ReadXYZ()
 
 // Scale the acceleration to the nearest 16th inch (tick)
 // Accelerometer scale is +/- 4mg
-// Lsb is 1.544352 ticks/sec^2
-// Use Q16:16 fixed point math
-signed short Accel::scaleAcceleration(signed short input)
+// Lsb is 24.709632 ticks/sec^2
+// Use Q22:10 fixed point math
+fpInt Accel::scaleAcceleration(fpInt input)
 {
 	// Locals
-	signed long fpMultiplicand = 101211;	// 1.544352 in fixed point
-	signed long fpInput;
-	signed short newValue;
+	fpInt	fpMultiplicand = ACCEL_LSB;		// 24.709632 in fixed point
+	fpInt	fpInput;
+	fpInt	newValue;
 
 	// Perform math in 32-bit values
 	fpInput = input;
 	fpInput = fpInput * fpMultiplicand;
-	// Convert back to integer
-	fpInput >>= 16;
-	newValue = (signed short)fpInput;
+	// Post-scale from the multiplication operation
+	fpInput >>= 10;
+
+	newValue = fpInput;
 	return(newValue);
 }
 
 // Compute the velocity from the sampled acceleration data
 // using numerical integration
-int Accel::ComputeVoft(NUM_BUFFER *n, signed short* computedValue)
+int Accel::ComputeVoft(NUM_BUFFER *n, fpInt* computedValue)
 {
     // Locals
-    signed short 	newVelocity;
+    fpInt	newVelocity;
 
     // Compute the new integral
     newVelocity = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newVelocity;
     // Return the new value
-    *computedValue = (signed short)n->t0;
+    *computedValue = n->t0;
     return 0;
 
 }
 
 // Compute the position from the sampled acceleration data
 // using numerical integration
-int Accel::ComputeXoft(NUM_BUFFER *n, signed short* computedValue)
+int Accel::ComputeXoft(NUM_BUFFER *n, fpInt* computedValue)
 {
     // Locals
-    signed short newPosition;
+    fpInt	newPosition;
 
     // Compute the new integral
     newPosition = trapIntegral(n->tn, n->tn1);
@@ -460,7 +461,7 @@ int Accel::ComputeXoft(NUM_BUFFER *n, signed short* computedValue)
     // TODO: Scale the value to 1/16th inch units
 
     // Return the new value
-    *computedValue = (signed short)n->t0;
+    *computedValue = n->t0;
     return 0;
 }
 
@@ -468,12 +469,13 @@ int Accel::ComputeXoft(NUM_BUFFER *n, signed short* computedValue)
 int Accel::ProcessAccelData(int test)
 {
 	// Locals
-	int fCount;
-	int failSafe;
-	int lStatus;
-	int i;
-	int displayCount;
-	signed short temp;
+	int 			fCount;
+	int 			failSafe;
+	int 			lStatus;
+	int 			i;
+	int 			displayCount;
+	signed short	temp;
+	fpInt			fpTemp;
 
 	// Read the FIFO count. If the processor throughput
 	// is what we believe, there should be 8 samples in each of
@@ -540,11 +542,11 @@ int Accel::ProcessAccelData(int test)
 	// Increment the sample count
 	_aSampleCount++;
 	// Update the validity flags
-	if(_aSampleCount > 2)
+	if(_aSampleCount > 1)
 	{
 	    _aVvalid = true;
 	}
-	if(_aSampleCount > 3)
+	if(_aSampleCount > 2)
 	{
 	    _aPvalid = true;
 	}
@@ -553,10 +555,22 @@ int Accel::ProcessAccelData(int test)
 	// i.e. 0th element is the most recent
 	// Perform signal averaging on the 8 most recent values
     // Skip Z axis for now
+
+	// X-axis
 	temp = AvgFilter(_aXvector);
-	_accelerationX = scaleAcceleration(temp);
+	// Convert to fixed point
+	fpTemp = (fpInt)temp;
+	fpTemp <<=10;
+	// Scale to ticks/sec^2
+	_accelerationX = scaleAcceleration(fpTemp);
+
+	// Y-axis
 	temp = AvgFilter(_aYvector);
-	_accelerationY = scaleAcceleration(temp);
+	// Convert to fixed point
+	fpTemp = (fpInt)temp;
+	fpTemp <<=10;
+	// Scale to ticks/sec^2
+	_accelerationY = scaleAcceleration(fpTemp);
 
 	// Update the velocity numerical buffers
 	_aVComputingX.tn1 = _aVComputingX.tn;
@@ -598,32 +612,86 @@ int Accel::ProcessAccelData(int test)
 
 signed short Accel::getAccelerationX()
 {
-    return _accelerationX;
+	// Locals
+	signed short	accelOut;
+	fpInt			fpTemp;
+
+	// Read the private member
+	fpTemp = _accelerationX;
+	// Convert to integer
+	fpTemp >>= 10;
+	accelOut = (signed short)fpTemp;
+    return accelOut;
 }
 
 signed short Accel::getAccelerationY()
 {
-    return _accelerationY;
+	// Locals
+	signed short	accelOut;
+	fpInt			fpTemp;
+
+	// Read the private member
+    fpTemp =  _accelerationY;
+    // Convert to integer
+    fpTemp >>= 10;
+    accelOut = (signed short)fpTemp;
+    return accelOut;
 }
 
 signed short Accel::getVelocityX()
 {
-    return _velocityX;
+	// Locals
+	signed short	velOut;
+	fpInt			fpTemp;
+
+	// Read the private member
+	fpTemp = _velocityX;
+	// Convert to integer
+	fpTemp >>= 10;
+	velOut = (signed short)fpTemp;
+	return velOut;
 }
 
 signed short Accel::getVelocityY()
 {
-    return _velocityY;
+	// Locals
+	signed short	velOut;
+	fpInt			fpTemp;
+
+	// Read the private member
+	fpTemp = _velocityY;
+	// Convert to integer
+	fpTemp >>= 10;
+	velOut = (signed short)fpTemp;
+	return velOut;
 }
 
 signed short Accel::getPositionX()
 {
-    return _positionX;
+	// Locals
+	signed short	posOut;
+	fpInt			fpTemp;
+
+	// Read the private member
+	fpTemp = _positionX;
+	// Convert to integer
+	fpTemp >>= 10;
+	posOut = (signed short)fpTemp;
+	return posOut;
 }
 
 signed short Accel::getPositionY()
 {
-    return _positionY;
+	// Locals
+	signed short	posOut;
+	fpInt			fpTemp;
+
+	// Read the private member
+	fpTemp = _positionY;
+	// Convert to integer
+	fpTemp >>= 10;
+	posOut = (signed short)fpTemp;
+	return posOut;
 }
 
 // Flush the accelerometer FIFOs

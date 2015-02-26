@@ -48,6 +48,10 @@ struct ACCEL_DATA_BLOCK
 // ADXL345 3-axis Accelerometer 
 ///////////////////////////////////
 
+// Least significant bit scaling in Q22:10 format
+#define ACCEL_LSB		25303				// 24.709632 ticks/sec^2
+											// tick = 1/16 inches
+
 // I2C Addressing
 // CS=3.3V
 #define  ACCEL_IC_ADDRHI (0x3B >> 1)        // Wire class uses 7-bit address
@@ -189,12 +193,12 @@ class Accel : public Sensor
         NUM_BUFFER          _aPComputingX;
         NUM_BUFFER          _aVComputingY;
         NUM_BUFFER			_aPComputingY;
-        signed short		_accelerationX;
-        signed short		_velocityX;
-        signed short		_positionX;
-        signed short		_accelerationY;
-        signed short		_velocityY;
-        signed short		_positionY;
+        fpInt				_accelerationX;
+        fpInt				_velocityX;
+        fpInt				_positionX;
+        fpInt				_accelerationY;
+        fpInt				_velocityY;
+        fpInt				_positionY;
 
         int                 flush();        // flush the h/w fifos
 
@@ -208,13 +212,13 @@ class Accel : public Sensor
         int ReadXYZ();                      // Block read of data
 
         // Compute velocity from sampled data
-        int ComputeVoft(NUM_BUFFER *n, signed short* computedValue);
+        int ComputeVoft(NUM_BUFFER *n, fpInt* computedValue);
         // Compute position from sampled data
-        int ComputeXoft(NUM_BUFFER *n, signed short* computedValue);
+        int ComputeXoft(NUM_BUFFER *n, fpInt* computedValue);
 
         // Process acceleration data from sensor
         int ProcessAccelData(int);
-        signed short scaleAcceleration(signed short);
+        fpInt scaleAcceleration(fpInt);
         signed short getAccelerationX();    // accessors
         signed short getAccelerationY();
         signed short getVelocityX();

@@ -207,12 +207,12 @@ class Gyro : public Sensor
         NUM_BUFFER          _pitch;
         NUM_BUFFER          _yaw;
         NUM_BUFFER			_roll;
-        signed short        _gdRoll;    // Rotation rate around the X axis
-        signed short        _gdPitch;   // Rotation rate around the Y axis
-        signed short        _gdYaw;     // Rotation rate around the Z axis
-        signed short        _gHeading;  // Heading relative to the robot front
-        signed short        _gPitch;    // Pitch relative to robot level
-        signed short		_gRoll;		// Roll relative to robot level
+        fpInt               _gdRoll;    // Rotation rate around the X axis
+        fpInt               _gdPitch;   // Rotation rate around the Y axis
+        fpInt               _gdYaw;     // Rotation rate around the Z axis
+        fpInt               _gHeading;  // Heading relative to the robot front
+        fpInt               _gPitch;    // Pitch relative to robot level
+        fpInt               _gRoll;		// Roll relative to robot level
 
         int                 flush();    // clear all gyroscope fifos
         int					resetFifos();
@@ -226,14 +226,14 @@ class Gyro : public Sensor
         int ReadGyroData();	            // Block read of data
 
         // Compute heading (integrate omega y)
-        int ComputeHeading(NUM_BUFFER *n, signed short *computedValue);
+        int ComputeHeading(NUM_BUFFER *n, fpInt *computedValue);
         // Compute pitch (integrate omega p)
-        int ComputePitch(NUM_BUFFER *n, signed short *computedValue);
+        int ComputePitch(NUM_BUFFER *n, fpInt *computedValue);
         // Compute roll (integrate omega r)
-        int ComputeRoll(NUM_BUFFER *n, signed short *computedValue);
+        int ComputeRoll(NUM_BUFFER *n, fpInt *computedValue);
 
         int ProcessGyroData(bool);      // Process pitch and yaw rates
-        signed short scaleGyroData(signed short);
+        fpInt scaleGyroData(fpInt);
         signed short getHeading();      // accessors
         signed short getPitch();
         signed short getRoll();

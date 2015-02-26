@@ -393,80 +393,71 @@ int Gyro::ReadGyroData()
 }
 
 // Scale the Gyro data into degrees per second
-signed short Gyro::scaleGyroData(signed short input)
+// max value +/- 250 dps: LSB = .007630
+// Use Q20:12 formatted fixed point to maintain precision
+fpInt Gyro::scaleGyroData(fpInt input)
 {
-	// Scale is +/- 250 dps for 16-bit value
-	// So fixed point Q16:16 is pretty straightforward
-
 	// Locals
-	signed long fpMultiplicand = 250;
-	signed long fpFactor;
-	signed short newValue;
+	fpInt fpMultiplicand = 8000;			// fixed point LSB
+	fpInt fpFactor;
+	fpInt newValue;
 
-	// Convert input into fixed point factor
-	fpFactor = (signed long)input;
+	fpFactor = input;
 	// Multiply by the scaling factor
 	fpFactor = fpFactor * fpMultiplicand;
-	// Convert product back to integer
-	fpFactor >>=16;
-	newValue = (signed short)fpFactor;
+	// Post scale for multiplication
+	fpFactor = fpFactor >> 20;
+	// Return the value
+	newValue = fpFactor;
 	return(newValue);
 }
 
 // Compute the roll from the sampled rotational velocity data
 // using numerical integration
-int Gyro::ComputeRoll(NUM_BUFFER *n, signed short* computedValue)
+int Gyro::ComputeRoll(NUM_BUFFER *n, fpInt* computedValue)
 {
 	// Locals
-	signed short newRoll;
-	signed short scaledRoll;
+	fpInt newRoll;
 
 	// Compute the new integral
 	newRoll = trapIntegral(n->tn, n->tn1);
 	// Add to the accumulator
 	n->t0 = n->t0 + newRoll;
-	// Scale to degrees
-	scaledRoll = scaleGyroData((signed short)n->t0);
 	// Return the new value
-	*computedValue = scaledRoll;
+	*computedValue = n->t0;
 	return 0;
 }
 
 // Compute the pitch from the sampled rotational velocity data
 // using numerical integration
-int Gyro::ComputePitch(NUM_BUFFER *n, signed short* computedValue)
+int Gyro::ComputePitch(NUM_BUFFER *n, fpInt* computedValue)
 {
     // Locals
-    signed short newPitch;
-    signed short scaledPitch;
+    fpInt newPitch;
 
     // Compute the new integral
     newPitch = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newPitch;
     // Scale to degrees
-    scaledPitch = scaleGyroData((signed short)n->t0);
     // Return the new value
-    *computedValue = scaledPitch;
+    *computedValue = n->t0;
     return 0;
 }
 
 // Compute the Heading from the sampled rotational velocity data
 // TODO: orient to the front of the robot
-int Gyro::ComputeHeading(NUM_BUFFER *n, signed short* computedValue)
+int Gyro::ComputeHeading(NUM_BUFFER *n, fpInt* computedValue)
 {
     // Locals
-    signed short newHeading;
-    signed short scaledHeading;
+    fpInt newHeading;
 
     // Compute the new integral
     newHeading = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newHeading;
-    // Scale to degrees
-    scaledHeading = scaleGyroData((signed short)n->t0);
     // Return the new value
-    *computedValue = scaledHeading;
+    *computedValue = n->t0;
     return 0;
 }
 
@@ -474,11 +465,13 @@ int Gyro::ComputeHeading(NUM_BUFFER *n, signed short* computedValue)
 int Gyro::ProcessGyroData(bool test)
 {
     // Locals
-    int fCount;
-    int failSafe;
-    int lStatus;
-    int i;
-    int displayCount = 0;
+    int 	fCount;
+    int 	failSafe;
+    int 	lStatus;
+    int 	i;
+    int 	displayCount = 0;
+    signed  short	temp;
+    fpInt 	fpTemp;
 
     // Read the FIFO count. If the processor throughput is what
     // we believe, there should be at least one sample in each of the
@@ -496,6 +489,9 @@ int Gyro::ProcessGyroData(bool test)
             return -1;
         }
     }
+
+    // FIFO is ready, read the data
+    lStatus = ReadGyroData();
 
     if(test)
     {
@@ -538,14 +534,11 @@ int Gyro::ProcessGyroData(bool test)
     	Serial.println();
     }
 
-    // FIFO is ready, read the data
-    lStatus = ReadGyroData();
-
     // Increment the sample count
     _gSampleCount++;
 
     // Update the validity flags
-    if(_gSampleCount > 2)
+    if(_gSampleCount > 1)
     {
         _gDataValid = true;
     }
@@ -553,13 +546,37 @@ int Gyro::ProcessGyroData(bool test)
     // Samples are arranged in time-descending order,
     // i.e. 0th element is the most recent
 
+    // Pitch
+    // For now, read just the first value
+    temp = _gOpVector[0];
+    // Convert to fixed point
+    fpTemp = (fpInt)temp;
+    fpTemp <<= 20;
+    _gdPitch =  scaleGyroData(fpTemp);
+
     // Update the numerical buffers
     _pitch.tn1 = _pitch.tn;
     _pitch.tn = _gdPitch;
 
+    // Yaw
+    temp = _gOyVector[0];
+    // Convert to fixed point
+    fpTemp = (fpInt)temp;
+    fpTemp <<= 20;
+    _gdYaw = scaleGyroData(fpTemp);
+
+    // Update the numerical buffers
     _yaw.tn1 = _yaw.tn;
     _yaw.tn = _gdYaw;
 
+    // Roll
+    temp = _gOrVector[0];
+    // Convert to fixed point
+    fpTemp = (fpInt)temp;
+    fpTemp <<= 20;
+    _gdRoll = scaleGyroData(fpTemp);
+
+    // Update the numerical buffers
     _roll.tn1 = _roll.tn;
     _roll.tn = _gdRoll;
 
@@ -586,32 +603,86 @@ int Gyro::ProcessGyroData(bool test)
 // Accessors
 signed short Gyro::getHeading()
 {
-    return _gHeading;
+	// Locals
+	fpInt			fpTemp;
+	signed  short	output;
+
+	// Read the private member
+	fpTemp = _gHeading;
+	// Convert to integer
+	fpTemp >>= 20;
+	output = (signed short)fpTemp;
+    return output;
 }
 
 signed short Gyro::getPitch()
 {
-    return _gPitch;
+	// Locals
+	fpInt			fpTemp;
+	signed  short	output;
+
+	// Read the private member
+	fpTemp = _gPitch;
+	// Convert to integer
+	fpTemp >>= 20;
+	output = (signed short)fpTemp;
+    return output;
 }
 
 signed short Gyro::getRoll()
 {
-	return _gRoll;
+	// Locals
+	fpInt			fpTemp;
+	signed  short	output;
+
+	// Read the private member
+	fpTemp = _gRoll;
+	// Convert to integer
+	fpTemp >>= 20;
+	output = (signed short)fpTemp;
+    return output;
 }
 
 signed short Gyro::getdRoll()
 {
-    return _gdRoll;
+	// Locals
+	fpInt			fpTemp;
+	signed  short	output;
+
+	// Read the private member
+	fpTemp = _gdRoll;
+	// Convert to integer
+	fpTemp >>= 20;
+	output = (signed short)fpTemp;
+    return output;
 }
 
 signed short Gyro::getdPitch()
 {
-    return _gdPitch;
+	// Locals
+	fpInt			fpTemp;
+	signed  short	output;
+
+	// Read the private member
+	fpTemp = _gdPitch;
+	// Convert to integer
+	fpTemp >>= 20;
+	output = (signed short)fpTemp;
+    return output;
 }
 
 signed short Gyro::getdYaw()
 {
-    return _gdYaw;
+	// Locals
+	fpInt			fpTemp;
+	signed  short	output;
+
+	// Read the private member
+	fpTemp = _gdYaw;
+	// Convert to integer
+	fpTemp >>= 20;
+	output = (signed short)fpTemp;
+    return output;
 }
 
 // Reset the gyroscope FIFOs
