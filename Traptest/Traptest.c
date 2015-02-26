@@ -5,13 +5,17 @@
 #define true	1
 #define false	0
 
+#define TIME_INTERVAL       100
+
+typedef signed long fpInt;
+
 // Define a numerical processing buffer for computing
 // the integral of a data stream
 struct NUM_BUFFER
 {
-	signed short	tn1;						// Value at t(n-1)
-	signed short	tn;							// Value at t(n)
-	signed long     t0;                         // accumulated value
+    fpInt   tn1;        // Value at t(n-1)
+    fpInt   tn;		// Value at t(n)
+    fpInt   t0;         // accumulated value
 };
 
 struct NUM_BUFFER	_aPComputingX;
@@ -26,29 +30,51 @@ signed short	_aXvector[32];
 signed short	_aYvector[32];
 signed short	_aZvector[32];
 signed short	_aSampleCount;
-int				_aVvalid;
-int				_aPvalid;
-signed short	_accelerationX;
-signed short	_accelerationY;
-signed short	_accelerationZ;
-signed short	_velocityX;
-signed short	_velocityY;
-signed short	_velocityZ;
-signed short	_positionX;
-signed short	_positionY;
-signed short	_positionZ;
+int		_aVvalid;
+int		_aPvalid;
+fpInt	        _accelerationX;
+fpInt	        _accelerationY;
+fpInt	        _accelerationZ;
+fpInt	        _velocityX;
+fpInt	        _velocityY;
+fpInt	        _velocityZ;
+fpInt	        _positionX;
+fpInt	        _positionY;
+fpInt	        _positionZ;
 
+signed short    accelOutX;
+signed short    accelOutY;
+signed short    accelOutZ;
+signed short    velocityOutX;
+signed short    velocityOutY;
+signed short    velocityOutZ;
+signed short    positionOutX;
+signed short    positionOutY;
+signed short    positionOutZ;
+
+
+// Convert from fpInt to signed short
+signed short fpToI(fpInt input)
+{
+    fpInt temp;
+    signed short out;
+
+    temp = input;
+    temp >>= 10;
+    out = (signed short)temp;
+    return(out);
+}
 
 // Compute the integral for the input region
 // using the Trapezoidal approximation
-signed short trapIntegral(signed short Data0, signed short Data1)
+// Use Q22:10 fixed point math
+fpInt trapIntegral(fpInt Data0, fpInt Data1)
 {
 	// Locals
-	signed short	newVal;
-	signed long		fpAugend;
-	signed long		fpAddend;
-	signed long		fptemp;
-	signed long		fpIntegral;
+	fpInt       newVal;
+	fpInt       fpAugend;
+	fpInt       fpAddend;
+	fpInt       fpDenominator;
 
 	// Estimate the integral over the region using the
 	// trapezoidal rule:
@@ -57,29 +83,28 @@ signed short trapIntegral(signed short Data0, signed short Data1)
 	// where a and b are sample points on the curve, i.e. tn-1 and tn
 	// Let deltaT = tn - tn-1
 	// I(tn-1,t) ~= deltaT * [(f(tn) + f(tn-1))/2]
-	// deltaT is fixed in this application, therefore
 
-	// Convert the inputs into fixed point Q16:16
-	fpAugend = (Data0 << 16);
-	fpAddend = (Data1 << 16);
+	// Read the input values;
+	fpAugend = Data0;
+	fpAddend = Data1;
 
-	// Compute the numerator
+	// Compute the numerator - scaling is OK
 	fpAugend = fpAugend + fpAddend;
 
-	// Multiply by the time interval divide by 2
+        // Now divide by 2 to get the average value
+        // and multiply by the time interval
+        fpAugend = fpAugend >> 2;
+         newVal = fpAugend / 50;
+
+	// Multiply by the time interval and divide by 2
+        // These two operations can be combined
 	// For 100 Hz update rate, this translates to x/200
 	// This can be computed as x/4 * x/50
-	// Divide by 4 first
-	fpAugend >>= 2;
-	// Divide by 50
-	fpAugend >>= 1;
+	// Divide by 4 first then divide by 50
+//        fpAugend >>= 2;
 
-	// Multiply by the time interval 1/100
-	fptemp = fpAugend / 50;
-
-	// Convert the result back to integer
-	fptemp >>= 16;
-	newVal = (signed short)fptemp;
+	// Divide by 50 for the final answer
+//	newVal = fpAugend / 50;
 
 	return(newVal);
 
@@ -90,54 +115,53 @@ signed short trapIntegral(signed short Data0, signed short Data1)
 // Accelerometer scale is +/- 4mg
 // Lsb is 24.709632 ticks/sec^2
 // Use Q22:10 fixed point math
-signed short scaleAcceleration(signed short input)
+fpInt scaleAcceleration(fpInt input)
 {
 	// Locals
-	signed long fpMultiplicand = 25302;			// 24.709632 in fixed point
-	signed long fpInput;
-	signed short newValue;
+	fpInt fpMultiplicand = 25303;			// 24.709632 in fixed point
+	fpInt fpInput;
+	fpInt newValue;
 
 	// Perform math in 32-bit values
 	fpInput = input;
 	fpInput = fpInput * fpMultiplicand;
-	// Convert back to integer
 	fpInput >>= 10;
-	newValue = (signed short)fpInput;
+
+	newValue = fpInput;
 	return(newValue);
 }
 
 // Compute the velocity from the sampled acceleration data
 // using numerical integration
-int ComputeVoft(struct NUM_BUFFER *n, signed short* computedValue)
+int ComputeVoft(struct NUM_BUFFER *n, fpInt* computedValue)
 {
     // Locals
-    signed short 	newVelocity;
+    fpInt   newVelocity;
 
     // Compute the new integral
     newVelocity = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newVelocity;
     // Return the new value
-    *computedValue = (signed short)n->t0;
+    *computedValue = n->t0;
     return 0;
 
 }
 
 // Compute the position from the sampled acceleration data
 // using numerical integration
-int ComputeXoft(struct NUM_BUFFER *n, signed short* computedValue)
+int ComputeXoft(struct NUM_BUFFER *n, fpInt* computedValue)
 {
     // Locals
-    signed short newPosition;
+    fpInt newPosition;
 
     // Compute the new integral
     newPosition = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newPosition;
-    // TODO: Scale the value to 1/16th inch units
 
     // Return the new value
-    *computedValue = (signed short)n->t0;
+    *computedValue = n->t0;
     return 0;
 }
 
@@ -165,7 +189,6 @@ signed short AvgFilter(signed short* Data)
   }
 
   // Divide by 8 using shifts
-//  lTemp = rsh_sgn32(lSum, 3);
   lTemp = lSum >> 3;
 
   // Truncate back to short
@@ -185,23 +208,28 @@ int ProcessAccelData(int test)
 	int i;
 	int displayCount;
 	signed short temp;
+        fpInt fpTemp;
 
 	// FIFO is ready, read 8 samples of data
+        // Test version, low constant acceleration
+        // Test version, maximum constant accelration
 	for(i = 0; i < 8; i++)
 	{
-		_aXvector[i] = 1;
-		_aYvector[i] = 1;
-		_aXvector[i] = 1;
+		_aXvector[i] = -32768;
+		_aYvector[i] = -32748;
+		_aXvector[i] = -32768;
 	}
 
 	// Increment the sample count
 	_aSampleCount++;
 	// Update the validity flags
-	if(_aSampleCount > 2)
+        // Velocity: valid with two acceleration samples
+	if(_aSampleCount > 1)
 	{
 	    _aVvalid = true;
 	}
-	if(_aSampleCount > 3)
+        // Position: valid with four acceleration samples
+	if(_aSampleCount > 2)
 	{
 	    _aPvalid = true;
 	}
@@ -211,42 +239,49 @@ int ProcessAccelData(int test)
 	// Perform signal averaging on the 8 most recent values
     // Skip Z axis for now
 	temp = AvgFilter(_aXvector);
-	_accelerationX = scaleAcceleration(temp);
+        fpTemp = (fpInt)temp;
+        fpTemp <<=10;
+	_accelerationX = scaleAcceleration(fpTemp);
 	temp = AvgFilter(_aYvector);
-	_accelerationY = scaleAcceleration(temp);
+        fpTemp = (fpInt)temp;
+        fpTemp <<=10;
+	_accelerationY = scaleAcceleration(fpTemp);
 
 	// Update the velocity numerical buffers
+        // Fixed point math
 	_aVComputingX.tn1 = _aVComputingX.tn;
 	_aVComputingX.tn = _accelerationX;
 
-    _aVComputingY.tn1 = _aVComputingY.tn;
-    _aVComputingY.tn = _accelerationY;
+        _aVComputingY.tn1 = _aVComputingY.tn;
+        _aVComputingY.tn = _accelerationY;
 
 	// Compute the velocity from the acceleration data
-    if(_aVvalid)
-    {
-        lStatus = ComputeVoft(&_aVComputingX, &_velocityX);
-        if(lStatus == 0)
+        if(_aVvalid)
         {
-            // Update the position numerical buffers
-            _aPComputingX.tn1 = _aPComputingX.tn;
-            _aPComputingX.tn = _velocityX;
+            lStatus = ComputeVoft(&_aVComputingX, &_velocityX);
+            if(lStatus == 0)
+            {
+                // Update the position numerical buffers
+                _aPComputingX.tn1 = _aPComputingX.tn;
+                _aPComputingX.tn = _velocityX;
+            }
+            lStatus = ComputeVoft(&_aVComputingY, &_velocityY);
+            if(lStatus == 0)
+            {
+                // Update the position numerical buffers
+                _aPComputingY.tn1 = _aPComputingY.tn;
+                _aPComputingY.tn = _velocityY;
+            }
+
+
         }
-        lStatus = ComputeVoft(&_aVComputingY, &_velocityY);
-        if(lStatus == 0)
-        {
-            // Update the position numerical buffers
-            _aPComputingY.tn1 = _aPComputingY.tn;
-            _aPComputingY.tn = _velocityY;
-        }
-    }
 
 	// Compute the position from the acceleration data
-    if(_aPvalid)
-    {
-        lStatus = ComputeXoft(&_aPComputingX, &_positionX);
-        lStatus = ComputeXoft(&_aPComputingY, &_positionY);
-    }
+        if(_aPvalid)
+        {
+            lStatus = ComputeXoft(&_aPComputingX, &_positionX);
+            lStatus = ComputeXoft(&_aPComputingY, &_positionY);
+        }
 
 	return 0;
 }
@@ -254,10 +289,34 @@ int ProcessAccelData(int test)
 
 void main(void)
 {
-	int i;
+    int i;
 
-	for(i= 0; i < 100; i++)
-	{
-		ProcessAccelData(0);
-	}
+    _accelerationX = 0;
+    _accelerationY = 0;
+    _accelerationZ = 0;
+    _velocityX = 0;
+    _velocityY = 0;
+    _velocityZ = 0;
+    _positionX = 0;
+    _positionY = 0;
+    _positionZ = 0;
+
+    accelOutX = 0;
+    accelOutY = 0;
+    accelOutZ = 0;
+    velocityOutX = 0;
+    velocityOutY = 0;
+    velocityOutZ = 0;
+    positionOutX = 0;
+    positionOutY = 0;
+    positionOutZ = 0;
+
+
+    printf("Update\tVelocity\tPosition\n");
+    // Simulate 15 seconds starting from rest at 0,0
+    for(i= 0; i < 1500; i++)
+    {
+        ProcessAccelData(0);
+        printf("%d\t%d\t%d\t0x%08x\t0x%08x\n", i, _velocityX, _positionX, _velocityX, _positionX);
+    }
 }
