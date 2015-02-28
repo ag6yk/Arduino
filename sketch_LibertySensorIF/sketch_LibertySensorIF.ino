@@ -65,16 +65,19 @@
 // INCLUDES
 ///////////////////////////////////////////////////////////////////////////////
 
+// Due to a quirk in the Arduino build process,
+// All Arduino library functions must be included here
+
 // I2C support
 #include <Wire.h>
 // SPI transport
-#if SPI_INT_ENABLE
 #include <SPI.h>
+// Software UART
+#include <SoftwareSerial.h>
+#if SPI_INT_ENABLE
 #include <NavSPI.h>
 #else
-// Software UART
 #if SUART_ENABLE
-#include <SoftwareSerial.h>
 #include <NavUart.h>
 #else
 #error "No valid transport selected. Choose SPI or Soft UART"
@@ -186,16 +189,11 @@ boolean         upDate = false;
 unsigned long   updateCount = 0;
 
 // Display update state
-unsigned long   debug_interval = 1000;      // 1 second display rate
 unsigned long   previousDisplayMillis;
-unsigned long   deTime;                     // for debug display
 boolean         Display = false;
 
 // Arduino heartbeart
 unsigned long   ArduinoHeartBeat;           // heart beat variable
-unsigned long   previousHBMillis;           // heart beat update 1Hz
-unsigned long   hbTime;
-unsigned long   hbInterval = 1000;
 boolean         hbUpdate = false;
 
 
@@ -276,13 +274,14 @@ void setup(void)
     currentMillis = millis();
     previousMillis = currentMillis;
     previousDisplayMillis = currentMillis;
-    previousHBMillis = currentMillis;
     
     // Initialize the transport
 #if SPI_INT_ENABLE  
     Status = navIf.begin(BENCH_TESTING);
 #else
-    Status = navIf.begin(57600, BENCH_TESTING);
+    // For production force good data
+    // TODO: conditional compile test code rather than parameterize
+    Status = navIf.begin(57600, 0);
 #endif
   
     dbg_println("Setup complete");
@@ -325,30 +324,23 @@ void loop(void)
     navCommand = navIf.getNavCommand();
     imuStatus = navIf.processNavCommand(navCommand);
         
-    // Update the interval timers    
+    // Update the interval timer
     currentMillis = millis();
-    eTime = currentMillis - previousMillis;
-    deTime = currentMillis - previousDisplayMillis;
-    hbTime = currentMillis - previousHBMillis;
 
     // Set the flags depending on the elapsed time    
-    if(deTime >= debug_interval)
+    if((currentMillis - previousDisplayMillis) >= 1000)
     {
         Display = true;
+        hbUpdate = true;
         previousDisplayMillis = currentMillis;
     }
     
-    if(eTime >= updateInterval)
+    if((currentMillis - previousMillis) >= 10)
     {
         upDate = true;
         previousMillis = currentMillis;
     }
     
-    if(hbTime >= hbInterval)
-    {
-        hbUpdate = true;
-        previousHBMillis = currentMillis;
-    }
     
     // Update the heartbeat on the HB interval
     if(hbUpdate)
@@ -377,7 +369,7 @@ void loop(void)
     
     if(Display)
     {
-        Serial.print("Status = "); Serial.println(imuStatus);
+        dbg_print("Status = "); dbg_println(imuStatus);
     }
 }
 

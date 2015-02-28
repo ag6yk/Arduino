@@ -70,6 +70,10 @@ Accel::Accel()
     _accelerationY = 0;
     _velocityY = 0;
     _positionY = 0;
+    _aXOffset = 0;
+    _aXThreshold = 0;
+    _aYOffset = 0;
+    _aYThreshold = 0;
 }
 
 // Specific initialization
@@ -239,10 +243,14 @@ int Accel::begin(void)
   Wire.write(byte(A_FIFO_CTL));
   Wire.write(byte(0x50));
   i2cStatus = Wire.endTransmission();
-  if(i2cStatus == 0)
+  if(i2cStatus != 0)
   {
-	  goto accelBeginSuccess;
+	  goto accelBeginError;
   }
+
+  // Hardware configured
+  // Characterize the offset and the threshold
+  ComputeOffset();
 
   // Error processing
 accelBeginError:
@@ -465,6 +473,56 @@ int Accel::ComputeXoft(NUM_BUFFER *n, fpInt* computedValue)
     return 0;
 }
 
+// Compute the offset and threshold for the acceleration axes
+void Accel::ComputeOffset()
+{
+	// Locals
+	signed long		xData;
+	signed long 	yData;
+	byte			i;
+	signed short	temp;
+	signed short	uTemp;
+
+	// Reset the globals
+	_aXOffset = 0;
+	_aYOffset = 0;
+	_aXThreshold = 0;
+	_aYThreshold = 0;
+
+	// Read a full buffer of data
+	while(available() < 32)
+	{
+		// NOP
+	}
+
+	ReadXYZ();
+
+	// Compute the mean and maximum magnitude of the 32 word sample
+	for(i = 0; i < 32; i++)
+	{
+		// X axis
+		uTemp = abs(_aXvector[i]);
+		if(uTemp > _aXThreshold)
+		{
+			_aXThreshold = uTemp;
+		}
+		xData = xData + _aXvector[i];
+
+		// Y axis
+		uTemp = abs(_aYvector[i]);
+		if(uTemp > _aYThreshold)
+		{
+			_aYThreshold = uTemp;
+		}
+		yData = yData + _aYvector[i];
+
+	}
+
+	_aXOffset = xData >> 5;
+	_aYOffset = yData >> 5;
+
+}
+
 // Process X and Y axes and load the output buffer
 int Accel::ProcessAccelData(int test)
 {
@@ -473,7 +531,6 @@ int Accel::ProcessAccelData(int test)
 	int 			failSafe;
 	int 			lStatus;
 	int 			i;
-	int 			displayCount;
 	signed short	temp;
 	fpInt			fpTemp;
 
@@ -497,46 +554,15 @@ int Accel::ProcessAccelData(int test)
 	// FIFO is ready, read 8 samples of data
 	lStatus = ReadXYZ();
 
-	if(0)
+	if(test)
 	{
-		Serial.println("Accel FIFO data...");
-		displayCount = 0;
-    	for(i = 0; i < fCount; i++)
-    	{
-    		Serial.print(":Xddot   = "); Serial.print(_aXvector[i], DEC);
-    		displayCount++;
-    		if(displayCount > 4)
-    		{
-    			displayCount = 0;
-    			Serial.println();
-    		}
-    	}
-    	Serial.println();
-    	displayCount = 0;
+		Serial.print("AFifo count = "); Serial.println(fCount);
     	for(i=0; i < fCount; i++)
     	{
-    		Serial.print(":Yddot   = "); Serial.print(_aYvector[i], DEC);
-    		displayCount++;
-    		if(displayCount > 4)
-    		{
-    			displayCount = 0;
-    			Serial.println();
-    		}
+      		Serial.print("Xddot   = "); Serial.println(_aXvector[i], DEC);
+    		Serial.print(":Yddot   = "); Serial.println(_aYvector[i], DEC);
+    		Serial.print(":Zddot   = "); Serial.println(_aZvector[i], DEC);
     	}
-    	Serial.println();
-    	displayCount = 0;
-    	for(i=0; i < fCount; i++)
-    	{
-    		Serial.print(":Zddot   = "); Serial.print(_aZvector[i], DEC);
-    		displayCount ++;
-    		if(displayCount > 4)
-    		{
-    			displayCount = 0;
-    			Serial.println();
-    		}
-    	}
-    	Serial.println();
-
 	}
 
 	// Increment the sample count
@@ -558,19 +584,31 @@ int Accel::ProcessAccelData(int test)
 
 	// X-axis
 	temp = AvgFilter(_aXvector);
-	// Convert to fixed point
-	fpTemp = (fpInt)temp;
-	fpTemp <<=10;
-	// Scale to ticks/sec^2
-	_accelerationX = scaleAcceleration(fpTemp);
+	// Correct for offset
+	temp = temp - _aXOffset;
+	// See if above noise threshold. If not, keep current value
+	if(abs(temp) > _aXThreshold)
+	{
+		// Convert to fixed point
+		fpTemp = (fpInt)temp;
+		fpTemp <<=10;
+		// Scale to ticks/sec^2
+		_accelerationX = scaleAcceleration(fpTemp);
+	}
 
 	// Y-axis
 	temp = AvgFilter(_aYvector);
-	// Convert to fixed point
-	fpTemp = (fpInt)temp;
-	fpTemp <<=10;
-	// Scale to ticks/sec^2
-	_accelerationY = scaleAcceleration(fpTemp);
+	// Correct for offset
+	temp = temp - _aYOffset;
+	// See if above noise threshdold. If not, keep current value
+	if(abs(temp) > _aYThreshold)
+	{
+		// Convert to fixed point
+		fpTemp = (fpInt)temp;
+		fpTemp <<=10;
+		// Scale to ticks/sec^2
+		_accelerationY = scaleAcceleration(fpTemp);
+	}
 
 	// Update the velocity numerical buffers
 	_aVComputingX.tn1 = _aVComputingX.tn;
@@ -603,6 +641,11 @@ int Accel::ProcessAccelData(int test)
     {
         lStatus = ComputeXoft(&_aPComputingX, &_positionX);
         lStatus = ComputeXoft(&_aPComputingY, &_positionY);
+    }
+
+    if(test)
+    {
+        delay(500);
     }
 
 	return 0;
@@ -734,6 +777,9 @@ int Accel::setOrigin()
     _aSampleCount = 0;
     // Refresh the fifos
     flush();
+
+    // Refresh the offsets and thresholds
+    ComputeOffset();
 
     return 0;
 }

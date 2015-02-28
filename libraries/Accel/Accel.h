@@ -185,6 +185,10 @@ class Accel : public Sensor
         signed short        _aXvector[32];
         signed short        _aYvector[32];
         signed short        _aZvector[32];
+        signed short		_aXOffset;
+        signed short		_aYOffset;
+        signed short		_aXThreshold;
+        signed short		_aYThreshold;
         int					_afifoCount;
         boolean             _aVvalid;
         boolean             _aPvalid;
@@ -215,6 +219,9 @@ class Accel : public Sensor
         int ComputeVoft(NUM_BUFFER *n, fpInt* computedValue);
         // Compute position from sampled data
         int ComputeXoft(NUM_BUFFER *n, fpInt* computedValue);
+
+        // Compute the noise offset for each accelerometer axis
+        void ComputeOffset();
 
         // Process acceleration data from sensor
         int ProcessAccelData(int);
