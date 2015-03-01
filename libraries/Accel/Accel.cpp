@@ -477,8 +477,9 @@ int Accel::ComputeXoft(NUM_BUFFER *n, fpInt* computedValue)
 void Accel::ComputeOffset()
 {
 	// Locals
-	signed long		xData;
-	signed long 	yData;
+	fpInt			xData;
+	fpInt		 	yData;
+	fpInt			fTemp;
 	byte			i;
 	signed short	temp;
 	signed short	uTemp;
@@ -506,7 +507,12 @@ void Accel::ComputeOffset()
 		{
 			_aXThreshold = uTemp;
 		}
-		xData = xData + _aXvector[i];
+
+		// Read the next value
+		fTemp = _aXvector[i];
+		// Convert to Q10:22 fixed point
+		fTemp <<= 10;
+		xData = xData + fTemp;
 
 		// Y axis
 		uTemp = abs(_aYvector[i]);
@@ -514,12 +520,17 @@ void Accel::ComputeOffset()
 		{
 			_aYThreshold = uTemp;
 		}
-		yData = yData + _aYvector[i];
+
+		// Convert to Q10:22 fixed point
+		fTemp = _aYvector[i];
+		fTemp <<= 10;
+		yData = yData + fTemp;
 
 	}
 
-	_aXOffset = xData >> 5;
-	_aYOffset = yData >> 5;
+	// Compute the offsets and convert to integer
+	_aXOffset = xData >> 15;
+	_aYOffset = yData >> 15;
 
 }
 
@@ -645,6 +656,9 @@ int Accel::ProcessAccelData(int test)
 
     if(test)
     {
+    	Serial.print("Ax= "); Serial.println(_accelerationX);
+    	Serial.print("Vx= "); Serial.println(_velocityX);
+    	Serial.print("Px= "); Serial.println(_positionX);
         delay(500);
     }
 

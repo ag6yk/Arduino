@@ -24,7 +24,7 @@
 #ifndef NavUart_h
 #define NavUart_h
 #include "Arduino.h"
-#include "/usr/share/arduino/libraries/SoftwareSerial/SoftwareSerial.h"
+#include <SoftwareSerial.h>
 #include "../NavTransport/NavTransport.h"
 
 ///////////////////////////////////////////////////////////////////////////////

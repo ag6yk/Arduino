@@ -24,7 +24,7 @@
 #ifndef NavSPI_h
 #define NavSPI_h
 #include "Arduino.h"
-#include "/usr/share/arduino/libraries/SPI/SPI.h"
+#include <SPI.h>
 #include "../NavTransport/NavTransport.h"
 
 

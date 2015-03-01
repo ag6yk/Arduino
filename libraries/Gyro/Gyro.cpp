@@ -493,7 +493,7 @@ int Gyro::ProcessGyroData(bool test)
     // FIFO is ready, read the data
     lStatus = ReadGyroData();
 
-    if(test)
+    if(0)
     {
 		Serial.println("Gyro FIFO data...");
 		displayCount = 0;
