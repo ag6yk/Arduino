@@ -234,6 +234,7 @@ class Accel : public Sensor
         signed short getPositionY();
 
         int         setOrigin();            // set the origin
+        int			stopMotion();			// reset accel and velocity only
 
 };
 

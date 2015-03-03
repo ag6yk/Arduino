@@ -111,7 +111,7 @@ int NavUart::processNavCommand(int Command)
 {
 	// Locals
 
-	// Currently support two commands
+	// Currently support three commands
 	switch(Command)
 	{
 		case NAV_SET_ORIGIN:
@@ -125,6 +125,17 @@ int NavUart::processNavCommand(int Command)
 			{
 				_gyroscope->setOrigin();
 			}
+			break;
+		}
+
+		case NAV_ZERO_MOTION:
+		{
+			// Update accumulators
+			if(_accelerometer)
+			{
+				_accelerometer->stopMotion();
+			}
+			// Gyro does not need updating
 			break;
 		}
 

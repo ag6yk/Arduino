@@ -42,6 +42,7 @@
 #define NAV_SET_ORIGIN          0x53            // 'S': set the current position
                                                 // to (0,0,0), heading to 0
 #define NAV_RUN_POST            0x54            // 'T': perform self-test
+#define NAV_ZERO_MOTION			0x5A			// 'Z': zero motion
 
 // POST responses
 #define NAV_POST_PASS           0x50            // 'P': Success

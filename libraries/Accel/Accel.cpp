@@ -802,6 +802,32 @@ int Accel::setOrigin()
     return 0;
 }
 
+// Update the accumulator for stopped motion
+// Reset the current processing
+int Accel::stopMotion()
+{
+    // Reset the velocity accumulator
+    _aVComputingX.t0 = 0;
+    _aVComputingX.tn = 0;
+    _aVComputingX.tn1 = 0;
+    _aVComputingY.t0 = 0;
+    _aVComputingY.tn = 0;
+    _aVComputingY.tn1 = 0;
+    _velocityX = 0;
+    _velocityY = 0;
+    _accelerationX = 0;
+    _accelerationY = 0;
+    // Force a complete refresh of the velocity computing buffers
+    _aVvalid = false;
+    _aPvalid = false;
+    _aSampleCount = 0;
+    // Refresh the fifos
+    flush();
+
+    return 0;
+}
+
+
 // Destructor
 Accel::~Accel()
 {
