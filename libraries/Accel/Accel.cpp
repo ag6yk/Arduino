@@ -466,8 +466,6 @@ int Accel::ComputeXoft(NUM_BUFFER *n, fpInt* computedValue)
     newPosition = trapIntegral(n->tn, n->tn1);
     // Add to the accumulator
     n->t0 = n->t0 + newPosition;
-    // TODO: Scale the value to 1/16th inch units
-
     // Return the new value
     *computedValue = n->t0;
     return 0;
@@ -489,6 +487,10 @@ void Accel::ComputeOffset()
 	_aYOffset = 0;
 	_aXThreshold = 0;
 	_aYThreshold = 0;
+
+	// Initialize the computation
+	xData = 0;
+	yData = 0;
 
 	// Read a full buffer of data
 	while(available() < 32)
@@ -597,7 +599,8 @@ int Accel::ProcessAccelData(int test)
 	temp = AvgFilter(_aXvector);
 	// Correct for offset
 	temp = temp - _aXOffset;
-	// See if above noise threshold. If not, keep current value
+	// See if above noise threshold. If not, set acceleration to 0
+	_accelerationX = 0;
 	if(abs(temp) > _aXThreshold)
 	{
 		// Convert to fixed point
@@ -611,7 +614,8 @@ int Accel::ProcessAccelData(int test)
 	temp = AvgFilter(_aYvector);
 	// Correct for offset
 	temp = temp - _aYOffset;
-	// See if above noise threshdold. If not, keep current value
+	// See if above noise threshdold. If not, set acceleration to 0
+	_accelerationY = 0;
 	if(abs(temp) > _aYThreshold)
 	{
 		// Convert to fixed point
