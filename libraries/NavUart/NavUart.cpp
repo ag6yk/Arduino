@@ -128,12 +128,34 @@ int NavUart::processNavCommand(int Command)
 			break;
 		}
 
+		case NAV_ZERO_X:
+		{
+			// Update X accumulator
+			if(_accelerometer)
+			{
+				_accelerometer->stopMotion(0x01);
+			}
+			// Gyro does not need updating
+			break;
+		}
+
+		case NAV_ZERO_Y:
+		{
+			// Update X accumulator
+			if(_accelerometer)
+			{
+				_accelerometer->stopMotion(0x02);
+			}
+			// Gyro does not need updating
+			break;
+		}
+
 		case NAV_ZERO_MOTION:
 		{
 			// Update accumulators
 			if(_accelerometer)
 			{
-				_accelerometer->stopMotion();
+				_accelerometer->stopMotion(0x03);
 			}
 			// Gyro does not need updating
 			break;
@@ -177,7 +199,7 @@ int NavUart::update(bool test)
 	// by the main application
 	if(_accelerometer)
 	{
-		imuStatus = _accelerometer->ProcessAccelData(test);
+		imuStatus = _accelerometer->ProcessAccelData(0);
 
 		if(imuStatus == 0)
 		{
@@ -202,6 +224,12 @@ int NavUart::update(bool test)
 			nDP->Heading_LSB = lowByte(_gyroscope->getHeading());
 			nDP->Pitch_MSB = highByte(_gyroscope->getPitch());
 			nDP->Pitch_LSB = lowByte(_gyroscope->getPitch());
+		}
+		else
+		{
+			Serial.print("Error processing gyro data, status = ");
+			Serial.println(imuStatus);
+			delay(100);
 		}
 		Status += imuStatus;
 	}

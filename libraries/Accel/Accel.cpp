@@ -567,7 +567,7 @@ int Accel::ProcessAccelData(int test)
 	// FIFO is ready, read 8 samples of data
 	lStatus = ReadXYZ();
 
-	if(test)
+	if(0)
 	{
 		Serial.print("AFifo count = "); Serial.println(fCount);
     	for(i=0; i < fCount; i++)
@@ -658,12 +658,12 @@ int Accel::ProcessAccelData(int test)
         lStatus = ComputeXoft(&_aPComputingY, &_positionY);
     }
 
-    if(test)
+    if(0)
     {
     	Serial.print("Ax= "); Serial.println(_accelerationX);
     	Serial.print("Vx= "); Serial.println(_velocityX);
     	Serial.print("Px= "); Serial.println(_positionX);
-        delay(500);
+//        delay(100);
     }
 
 	return 0;
@@ -804,20 +804,37 @@ int Accel::setOrigin()
 
 // Update the accumulator for stopped motion
 // Reset the current processing
-int Accel::stopMotion()
+int Accel::stopMotion(int nFlag)
 {
-    // Reset the velocity accumulator
-    _aVComputingX.t0 = 0;
-    _aVComputingX.tn = 0;
-    _aVComputingX.tn1 = 0;
-    _aVComputingY.t0 = 0;
-    _aVComputingY.tn = 0;
-    _aVComputingY.tn1 = 0;
-    _velocityX = 0;
-    _velocityY = 0;
-    _accelerationX = 0;
-    _accelerationY = 0;
+	// Bit map
+	// Bit 0: X-axis
+	// Bit 1: Y-axis
+
+	// Check for X-axis
+	if(nFlag & 0x01)
+	{
+		// Reset the velociy accumulator
+	    _aVComputingX.t0 = 0;
+	    _aVComputingX.tn = 0;
+	    _aVComputingX.tn1 = 0;
+	    _velocityX = 0;
+	    // Reset the accelerator accumulator
+	    _accelerationX = 0;
+	}
+
+	// Check the Y-axis
+	if(nFlag & 0x02)
+	{
+		// Reset the velocity accumulator
+		_aVComputingY.t0 = 0;
+		_aVComputingY.tn = 0;
+		_aVComputingY.tn1 = 0;
+		_velocityY = 0;
+		// Reset the accerlerator accumulator
+		_accelerationY = 0;
+	}
     // Force a complete refresh of the velocity computing buffers
+	// This is safe for all cases
     _aVvalid = false;
     _aPvalid = false;
     _aSampleCount = 0;

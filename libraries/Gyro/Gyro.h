@@ -201,6 +201,10 @@ class Gyro : public Sensor
         signed short        _gOrVector[32];
         signed short        _gOyVector[32];
         signed short        _gOpVector[32];
+        signed short		_gOyOffset;
+        signed short		_gOyThreshold;
+        signed short		_gOpOffset;
+        signed short		_gOpThreshold;
         int					_gfifoCount;
         boolean             _gDataValid;
         int                 _gSampleCount;
@@ -231,6 +235,9 @@ class Gyro : public Sensor
         int ComputePitch(NUM_BUFFER *n, fpInt *computedValue);
         // Compute roll (integrate omega r)
         int ComputeRoll(NUM_BUFFER *n, fpInt *computedValue);
+
+        // Compute the offset for the values
+        void ComputeOffset();
 
         int ProcessGyroData(bool);      // Process pitch and yaw rates
         fpInt scaleGyroData(fpInt);

@@ -29,8 +29,9 @@
 
 // Enable to see serial monitor output
 #define BENCH_TESTING   1
+#define BENCH_DISPLAY_DEBUG	0
 
-#if BENCH_TESTING
+#if BENCH_DISPLAY_DEBUG
 #define dbg_print(x)        Serial.print(x)
 #define dbg_println(x)      Serial.println(x)
 #define dbg_printlnm(x,y)   Serial.println(x,y)
@@ -40,8 +41,9 @@
 #define dbg_printlnm(x,y)
 #endif
 
+
 // Enable to test NAV interface with canned data
-#define NAV_DATA_TEST   1
+#define NAV_DATA_TEST   0
 
 // Enable to test the Arduino sensor interface
 // without connection to the nav shield
@@ -52,7 +54,7 @@
 #define GYRO_ENABLE     1
 #define COMPASS_ENABLE  0
 #define BARO_ENABLE     0
-#define RANGES_ENABLE   1
+#define RANGES_ENABLE   0
 
 // Conditionally compile support for the SPI interrupt
 #define SPI_INT_ENABLE  0
@@ -128,6 +130,10 @@
 // A2 and A3 are spare
 #endif
 
+// Time constants
+#define	DISPLAY_TIME	1000
+#define UPDATE_TIME		10
+#define DEBUG_RATE		115200
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -184,7 +190,7 @@ int             BaroStatus;
 unsigned long   previousMillis;
 unsigned long   currentMillis;
 unsigned long   eTime;                      // elapsed time in ms
-unsigned long   updateInterval = 10;        // 10 ms update rate
+unsigned long   updateInterval = 1;        // 10 ms update rate
 boolean         upDate = false;
 unsigned long   updateCount = 0;
 
@@ -214,7 +220,7 @@ void setup(void)
     
 #if BENCH_TESTING
     // Set up the debugger
-    Serial.begin(9600);
+    Serial.begin(DEBUG_RATE);
     Serial.println(" ");
     Serial.println("Setup Debug Info...");
     delay(500);
@@ -328,14 +334,14 @@ void loop(void)
     currentMillis = millis();
 
     // Set the flags depending on the elapsed time    
-    if((currentMillis - previousDisplayMillis) >= 1000)
+    if((currentMillis - previousDisplayMillis) >= DISPLAY_TIME)
     {
         Display = true;
         hbUpdate = true;
         previousDisplayMillis = currentMillis;
     }
     
-    if((currentMillis - previousMillis) >= 10)
+    if((currentMillis - previousMillis) >= UPDATE_TIME)
     {
         upDate = true;
         previousMillis = currentMillis;
@@ -343,13 +349,14 @@ void loop(void)
     
     
     // Update the heartbeat on the HB interval
-    if(hbUpdate)
+//    if(hbUpdate)
+    if(0)
     {
         ArduinoHeartBeat++;
         dbg_print("HB = "); dbg_println(ArduinoHeartBeat);
     }
     
-    if(Display)
+    if(0)
     {
         dbg_print("updateCount = "); dbg_println(updateCount);
     }
@@ -361,7 +368,7 @@ void loop(void)
         updateCount++;
        
         // Refresh the currect nav data buffer
-        imuStatus = navIf.update(Display);
+        imuStatus = navIf.update(false);
         
         // Switch nav data buffers
         navIf.switchBuffers();

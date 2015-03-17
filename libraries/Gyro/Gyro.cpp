@@ -29,6 +29,23 @@
 // DEFINES
 ////////////////////////////////////////////////////////////////////////////////
 
+#define FP_SHIFT	12
+
+#define BENCH_DISPLAY_DEBUG	0
+
+#if BENCH_DISPLAY_DEBUG
+#define dbg_print(x)        Serial.print(x)
+#define dbg_printm(x,y)     Serial.printm(x,y)
+#define dbg_println(x)      Serial.println(x)
+#define dbg_printlnm(x,y)   Serial.println(x,y)
+#else
+#define dbg_print(x)
+#define dbg_printm(x,y)
+#define dbg_println(x)
+#define dbg_printlnm(x,y)
+#endif
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // CLASS AND METHOD DEFINITIONS
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,6 +82,10 @@ Gyro::Gyro(void)
     _gdRoll = 0;
     _gdPitch = 0;
     _gdYaw = 0;
+    _gOyOffset = 0;
+    _gOyThreshold = 0;
+    _gOpOffset = 0;
+    _gOpThreshold = 0;
 
 }
 
@@ -108,7 +129,8 @@ int Gyro::begin(void)
     // Enable X Y and Z axis
     // 0b00001111
     Wire.write(byte(G_CTRL_REG1 | 0x80));     // point to start of multi-byte
-    Wire.write(byte(0x0F));
+//    Wire.write(byte(0x0F));
+    Wire.write(byte(0x7F));
   
     // Control register 2
     // Normal mode, 8Hz cutoff
@@ -135,6 +157,7 @@ int Gyro::begin(void)
     // SPI dont care
     // 0b10000000
     Wire.write(byte(0x80));
+    //Wire.write(byte(0xB0));
   
     // Control register 5
     // Normal boot mode
@@ -394,11 +417,11 @@ int Gyro::ReadGyroData()
 
 // Scale the Gyro data into degrees per second
 // max value +/- 250 dps: LSB = .007630
-// Use Q20:12 formatted fixed point to maintain precision
+// Use Q10:22 formatted fixed point to maintain precision
 fpInt Gyro::scaleGyroData(fpInt input)
 {
 	// Locals
-	fpInt fpMultiplicand = 8000;			// fixed point LSB
+	fpInt fpMultiplicand = 8;				// fixed point LSB scaling value
 	fpInt fpFactor;
 	fpInt newValue;
 
@@ -406,7 +429,7 @@ fpInt Gyro::scaleGyroData(fpInt input)
 	// Multiply by the scaling factor
 	fpFactor = fpFactor * fpMultiplicand;
 	// Post scale for multiplication
-	fpFactor = fpFactor >> 20;
+	fpFactor = fpFactor >> FP_SHIFT;
 	// Return the value
 	newValue = fpFactor;
 	return(newValue);
@@ -461,6 +484,72 @@ int Gyro::ComputeHeading(NUM_BUFFER *n, fpInt* computedValue)
     return 0;
 }
 
+
+// Compute the offset
+void Gyro::ComputeOffset(void)
+{
+	// Locals
+	fpInt			yawData;
+	fpInt		 	pitchData;
+	fpInt			fTemp;
+	byte			i;
+	signed short	temp;
+	signed short	uTemp;
+
+	// Reset the globals
+	_gOyOffset = 0;
+	_gOpOffset = 0;
+	_gOyThreshold = 0;
+	_gOpThreshold = 0;
+
+	// Initialize the computation
+	yawData = 0;
+	pitchData = 0;
+
+	// Read a full buffer of data
+	while(available() < 32)
+	{
+		// NOP
+	}
+
+	ReadGyroData();
+
+	// Compute the mean and maximum magnitude of the 32 word sample
+	for(i = 0; i < 32; i++)
+	{
+		// Yaw axis
+		uTemp = abs(_gOyVector[i]);
+		if(uTemp > _gOyThreshold)
+		{
+			_gOyThreshold = uTemp;
+		}
+
+		// Read the next value
+		fTemp = _gOyVector[i];
+		// Convert to fixed point
+		fTemp <<= FP_SHIFT;
+		yawData = yawData + fTemp;
+
+		// Pitch axis
+		uTemp = abs(_gOpVector[i]);
+		if(uTemp > _gOpThreshold)
+		{
+			_gOpThreshold = uTemp;
+		}
+
+		// Convert to fixed point
+		fTemp = _gOpVector[i];
+		fTemp <<= FP_SHIFT;
+		pitchData = pitchData + fTemp;
+
+	}
+
+	// Compute the offsets and convert to integer
+	_gOyOffset = yawData >> (FP_SHIFT + 5);
+	_gOpOffset = pitchData >> (FP_SHIFT + 5);
+
+}
+
 // Process rate data
 int Gyro::ProcessGyroData(bool test)
 {
@@ -493,45 +582,57 @@ int Gyro::ProcessGyroData(bool test)
     // FIFO is ready, read the data
     lStatus = ReadGyroData();
 
-    if(0)
+    if(1)
     {
-		Serial.println("Gyro FIFO data...");
+#if ROLL_ENABLE
 		displayCount = 0;
+		dbg_println("Rolldot");
     	for(i = 0; i < fCount; i++)
     	{
-    		Serial.print(":Rolldot =  "); Serial.print(_gOrVector[i], DEC);
+    		dbg_printm(_gOrVector[i], DEC); dbg_print(", ");
     		displayCount++;
-    		if(displayCount > 4)
+    		if(displayCount > 7)
     		{
     			displayCount = 0;
-    			Serial.println();
+    			dbg_println();
     		}
     	}
+    	dbg_println();
+#endif
+
+#if YAW_ENABLE
     	displayCount = 0;
-    	Serial.println();
+    	dbg_println("Yawdot");
     	for(i=0; i < fCount; i++)
     	{
-    		Serial.print("Yawdot = "); Serial.println(_gOyVector[i], DEC);
+    		dbg_printm(_gOyVector[i], DEC); dbg_print(", ");
     		displayCount++;
-    		if(displayCount > 4)
+    		if(displayCount > 7)
     		{
     			displayCount = 0;
-    			Serial.println();
+    			dbg_println();
     		}
     	}
+    	dbg_println();
+#endif
+
+#if 0
+#if PITCH_ENABLE
     	displayCount = 0;
-    	Serial.println();
+    	dbg_println("Pitchdot");
     	for(i=0; i < fCount; i++)
     	{
-    		Serial.print("Pitdot =  "); Serial.println(_gOpVector[i], DEC);
+    		dbg_printm(_gOpVector[i], DEC); dbg_print(", ");
     		displayCount++;
-    		if(displayCount > 4)
+    		if(displayCount > 7)
     		{
     			displayCount = 0;
-    			Serial.println();
+    			dbg_println();
     		}
     	}
-    	Serial.println();
+    	dbg_println();
+#endif
+#endif
     }
 
     // Increment the sample count
@@ -546,39 +647,61 @@ int Gyro::ProcessGyroData(bool test)
     // Samples are arranged in time-descending order,
     // i.e. 0th element is the most recent
 
+#if PITCH_ENABLE
     // Pitch
-    // For now, read just the first value
-    temp = _gOpVector[0];
-    // Convert to fixed point
-    fpTemp = (fpInt)temp;
-    fpTemp <<= 20;
-    _gdPitch =  scaleGyroData(fpTemp);
+    // Filter the values
+	temp = AvgFilter(_gOpVector);
+	// Correct for offset
+	temp = temp - _gOpOffset;
+	// See if above noise threshold. If not, set pitch rate to 0
+	_gdPitch = 0;
+	if(abs(temp) > _gOpThreshold)
+	{
+		// Convert to fixed point
+		fpTemp = (fpInt)temp;
+		fpTemp <<= FP_SHIFT;
+		// Scale to degree/sec
+		_gdPitch = scaleGyroData(fpTemp);
+	}
 
     // Update the numerical buffers
     _pitch.tn1 = _pitch.tn;
     _pitch.tn = _gdPitch;
+#endif
 
+#if YAW_ENABLE
     // Yaw
-    temp = _gOyVector[0];
-    // Convert to fixed point
-    fpTemp = (fpInt)temp;
-    fpTemp <<= 20;
-    _gdYaw = scaleGyroData(fpTemp);
+    // Filter the values
+    temp = AvgFilter(_gOyVector);
+    // Correct for offset
+    temp = temp - _gOyOffset;
+    // See if above noise threshold. If not set yaw rate to 0
+    _gdYaw = 0;
+    if(abs(temp) > _gOyThreshold)
+    {
+    	// Convert to fixed point
+        fpTemp = (fpInt)temp;
+        fpTemp <<= FP_SHIFT;
+        _gdYaw = scaleGyroData(fpTemp);
+    }
 
     // Update the numerical buffers
     _yaw.tn1 = _yaw.tn;
     _yaw.tn = _gdYaw;
+#endif
 
+#if ROLL_ENABLE
     // Roll
     temp = _gOrVector[0];
     // Convert to fixed point
     fpTemp = (fpInt)temp;
-    fpTemp <<= 20;
+    fpTemp <<= FP_SHIFT;
     _gdRoll = scaleGyroData(fpTemp);
 
     // Update the numerical buffers
     _roll.tn1 = _roll.tn;
     _roll.tn = _gdRoll;
+#endif
 
     // Compute the rotational data from the omegas
     if(_gDataValid)
@@ -597,6 +720,13 @@ int Gyro::ProcessGyroData(bool test)
 
     }
 
+#if YAW_ENABLE
+    dbg_println("---");
+    dbg_println(_gdYaw);
+    dbg_println(_gHeading);
+    dbg_println("+++");
+#endif
+
     return 0;
 }
 
@@ -610,7 +740,7 @@ signed short Gyro::getHeading()
 	// Read the private member
 	fpTemp = _gHeading;
 	// Convert to integer
-	fpTemp >>= 20;
+	//fpTemp >>= FP_SHIFT;
 	output = (signed short)fpTemp;
     return output;
 }
@@ -624,7 +754,7 @@ signed short Gyro::getPitch()
 	// Read the private member
 	fpTemp = _gPitch;
 	// Convert to integer
-	fpTemp >>= 20;
+	fpTemp >>= FP_SHIFT;
 	output = (signed short)fpTemp;
     return output;
 }
@@ -638,7 +768,7 @@ signed short Gyro::getRoll()
 	// Read the private member
 	fpTemp = _gRoll;
 	// Convert to integer
-	fpTemp >>= 20;
+	fpTemp >>= FP_SHIFT;
 	output = (signed short)fpTemp;
     return output;
 }
@@ -652,7 +782,7 @@ signed short Gyro::getdRoll()
 	// Read the private member
 	fpTemp = _gdRoll;
 	// Convert to integer
-	fpTemp >>= 20;
+	fpTemp >>= FP_SHIFT;
 	output = (signed short)fpTemp;
     return output;
 }
@@ -666,7 +796,7 @@ signed short Gyro::getdPitch()
 	// Read the private member
 	fpTemp = _gdPitch;
 	// Convert to integer
-	fpTemp >>= 20;
+	fpTemp >>= FP_SHIFT;
 	output = (signed short)fpTemp;
     return output;
 }
@@ -680,7 +810,7 @@ signed short Gyro::getdYaw()
 	// Read the private member
 	fpTemp = _gdYaw;
 	// Convert to integer
-	fpTemp >>= 20;
+	fpTemp >>= FP_SHIFT;
 	output = (signed short)fpTemp;
     return output;
 }

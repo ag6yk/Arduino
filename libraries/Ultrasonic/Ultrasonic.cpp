@@ -73,7 +73,7 @@ int Ultrasonic::ReadRange(bool test)
 		return(0xFFFF);
 	}
 
-	if(test)
+	if(false)
 	{
 		Serial.print("Tprop = "); Serial.println(Tprop);
 	}
