@@ -304,7 +304,7 @@ signed short Sensor::DigFilter(signed short* Data0, signed short* Data1)
 }
 
 // Perform signal averaging on an array of 16-bit signed integers
-signed short Sensor::AvgFilter(signed short* Data)
+signed short Sensor::AvgFilter(int shiftValue, signed short* Data)
 {
   // Average 8 signals together
   int i;
@@ -312,12 +312,18 @@ signed short Sensor::AvgFilter(signed short* Data)
   signed long lTemp;
   signed short Sum = 0;
   signed short filteredValue;
+  int k;
 
-  unsigned short AbsSum;
+  k = 8;
+  if(shiftValue == 5)
+  {
+	  k = 32;
+  }
+
 
   // Sum the values together
   // Use a 32-bit value to prevent overflow
-  for(i = 0; i < 8; i++)
+  for(i = 0; i < k; i++)
   {
       // Cast the next sample as a long
       Sum = *Data++;
@@ -326,9 +332,8 @@ signed short Sensor::AvgFilter(signed short* Data)
       lSum = lSum + lTemp;
   }
 
-  // Divide by 8 using shifts
-//  lTemp = rsh_sgn32(lSum, 3);
-  lTemp = lSum >> 3;
+  // Divide by using shifts
+  lTemp = lSum >> shiftValue;
 
   // Truncate back to short
   filteredValue = (signed short)lTemp;

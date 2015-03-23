@@ -160,6 +160,7 @@ int Accel::begin(void)
   {
 	  goto accelBeginError;
   }
+  i2cFlowCount++;
   
   // POWER_CTL
   // Link bit not used
@@ -252,20 +253,21 @@ int Accel::begin(void)
   // Characterize the offset and the threshold
   ComputeOffset();
 
+	// Successful processing
+accelBeginSuccess:
+	Serial.println("Accel::begin SUCCESS");
+	Serial.print("I2C address = "); Serial.println(_i2cAddress, HEX);
+	delay(500);
+	return 0;
+
   // Error processing
 accelBeginError:
-    Serial.println("Accel::begin");
+    Serial.println("Accel::begin ERROR");
     Serial.print("Count  = "); Serial.println(i2cFlowCount);
     Serial.print("Status = "); Serial.println(i2cStatus);
     delay(500);
 	return i2cStatus;
 
-	// Successful processing
-accelBeginSuccess:
-	Serial.println("Accel::begin");
-	Serial.print("I2C address = "); Serial.println(_i2cAddress, HEX);
-	delay(500);
-  return 0;
 }
 
 boolean Accel::readID()
@@ -547,10 +549,7 @@ int Accel::ProcessAccelData(int test)
 	signed short	temp;
 	fpInt			fpTemp;
 
-	// Read the FIFO count. If the processor throughput
-	// is what we believe, there should be 8 samples in each of
-	// the FIFOs for the accelerometer. We need 8 samples or
-	// the math doesn't work
+	// Read the FIFO count. Need at least 8 samples to update the math
 	fCount = 0;
 	failSafe = 0;
 	while(fCount < 8)
@@ -596,7 +595,7 @@ int Accel::ProcessAccelData(int test)
     // Skip Z axis for now
 
 	// X-axis
-	temp = AvgFilter(_aXvector);
+	temp = AvgFilter(3, _aXvector);
 	// Correct for offset
 	temp = temp - _aXOffset;
 	// See if above noise threshold. If not, set acceleration to 0
@@ -611,7 +610,7 @@ int Accel::ProcessAccelData(int test)
 	}
 
 	// Y-axis
-	temp = AvgFilter(_aYvector);
+	temp = AvgFilter(3, _aYvector);
 	// Correct for offset
 	temp = temp - _aYOffset;
 	// See if above noise threshdold. If not, set acceleration to 0

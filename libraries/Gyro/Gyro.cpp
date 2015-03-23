@@ -29,13 +29,12 @@
 // DEFINES
 ////////////////////////////////////////////////////////////////////////////////
 
-#define FP_SHIFT	12
 
-#define BENCH_DISPLAY_DEBUG	0
+#define BENCH_DISPLAY_DEBUG	1
 
 #if BENCH_DISPLAY_DEBUG
 #define dbg_print(x)        Serial.print(x)
-#define dbg_printm(x,y)     Serial.printm(x,y)
+#define dbg_printm(x,y)     Serial.print(x,y)
 #define dbg_println(x)      Serial.println(x)
 #define dbg_printlnm(x,y)   Serial.println(x,y)
 #else
@@ -43,6 +42,24 @@
 #define dbg_printm(x,y)
 #define dbg_println(x)
 #define dbg_printlnm(x,y)
+#endif
+
+// Fixed point factors, use Q11:21
+#define FP_SHIFT	11
+#define GYRO_FULLSCALE250
+//#define GYRO_FULLSCALE500
+//#define GYRO_FULLSCALE2000
+
+#ifdef GYRO_FULLSCALE250
+#define FP_LSB				16
+#else
+#ifdef GYRO_FULLSCALE500
+#define FP_LSB				31
+#else
+#ifdef GYRO_FULLSCALE2000
+#define FP_LSB				125
+#endif
+#endif
 #endif
 
 
@@ -118,7 +135,6 @@ int Gyro::begin(void)
         return -1;
     }
 
-
     // Gyro is responding, configure for measurement
     Wire.beginTransmission(_i2cAddress);
 
@@ -130,7 +146,10 @@ int Gyro::begin(void)
     // 0b00001111
     Wire.write(byte(G_CTRL_REG1 | 0x80));     // point to start of multi-byte
 //    Wire.write(byte(0x0F));
-    Wire.write(byte(0x7F));
+//    Wire.write(byte(0x7F));
+    // DEBUG DEBUG DEBUG
+    // Max rate and cutoff freqs
+    Wire.write(byte(0xEF));
   
     // Control register 2
     // Normal mode, 8Hz cutoff
@@ -153,20 +172,28 @@ int Gyro::begin(void)
     // Block data update not until MSB and LSB read
     // Little-endian
     // 250 degrees/sec
-    // selt-test disabled
+    // self-test disabled
     // SPI dont care
     // 0b10000000
+    // Debug 2000
+    // 0b10110000
     Wire.write(byte(0x80));
-    //Wire.write(byte(0xB0));
+    //Wire.write(byte(0));
+//    Wire.write(byte(0xB0));
   
     // Control register 5
     // Normal boot mode
     // Enable FIFO
     // Enable HPF
+    // Enable LPF2
+    // INT1 default
     // INT1 from LPF 2
-    // Output from LPF 2
     // 0b01011111
-    Wire.write(byte(0x5F));
+//    Wire.write(byte(0x5F));
+    Wire.write(byte(0x53));
+
+
+
     // Reference value
     // 0
     Wire.write(byte(0));
@@ -176,7 +203,7 @@ int Gyro::begin(void)
         goto gyroBeginError;
     }
     i2cFlowCount++;
-  
+
     // Fifo control
     // FIFO mode
     // Watermark to 16 (1/2 full)
@@ -200,28 +227,31 @@ int Gyro::begin(void)
     Wire.write(byte(G_INT1_CFG));
     Wire.write(byte(0));
     i2cStatus = Wire.endTransmission();
-    if(i2cStatus == 0)
+    if(i2cStatus != 0)
     {
-        goto gyroBeginSuccess;
+        goto gyroBeginError;
     }
-  
+    i2cFlowCount++;
+
     // Since INT1 is not used, use default for
     // thresholds and duration
-
-    // Error processing
-gyroBeginError:
-    Serial.println("Gyro::begin");
-    Serial.print("Count  = "); Serial.println(i2cFlowCount);
-    Serial.print("Status = "); Serial.println(i2cStatus);
-    delay(500);
-    return i2cStatus;
+    ComputeOffset();
 
     // Successful processing
 gyroBeginSuccess:
-    Serial.println("Gyro::begin");
+    Serial.println("Gyro::begin SUCCESS");
     Serial.print("I2C address = "); Serial.println(_i2cAddress, HEX);
     delay(500);
     return 0;
+
+    // Error processing
+gyroBeginError:
+    Serial.println("Gyro::begin ERROR");
+    Serial.print("Count  = "); Serial.println(i2cFlowCount);
+    Serial.print("Status = "); Serial.println(i2cStatus);
+    delay(100);
+    return i2cStatus;
+
 }
 
 // Read Device ID
@@ -269,6 +299,7 @@ boolean Gyro::readID()
 
     // Process success
 gyroReadIDSuccess:
+	Serial.println("Gyro::readID - success");
     return true;
 
     // Process the error
@@ -416,17 +447,17 @@ int Gyro::ReadGyroData()
 }
 
 // Scale the Gyro data into degrees per second
-// max value +/- 250 dps: LSB = .007630
-// Use Q10:22 formatted fixed point to maintain precision
+// max value +/- 2000 dps: LSB = .061
+// Use Q11:21 formatted fixed point to maintain precision
 fpInt Gyro::scaleGyroData(fpInt input)
 {
 	// Locals
-	fpInt fpMultiplicand = 8;				// fixed point LSB scaling value
+	fpInt fpMultiplicand = FP_LSB;			// fixed point LSB scaling value
 	fpInt fpFactor;
 	fpInt newValue;
 
 	fpFactor = input;
-	// Multiply by the scaling factor
+	// Multiply by the fixed point scaling factor
 	fpFactor = fpFactor * fpMultiplicand;
 	// Post scale for multiplication
 	fpFactor = fpFactor >> FP_SHIFT;
@@ -495,6 +526,7 @@ void Gyro::ComputeOffset(void)
 	byte			i;
 	signed short	temp;
 	signed short	uTemp;
+	int				fCount;
 
 	// Reset the globals
 	_gOyOffset = 0;
@@ -505,10 +537,14 @@ void Gyro::ComputeOffset(void)
 	// Initialize the computation
 	yawData = 0;
 	pitchData = 0;
+	fCount = 0;
 
 	// Read a full buffer of data
-	while(available() < 32)
+	while( fCount < 31)
 	{
+		fCount = available();
+		dbg_print("Gyro Count = "); dbg_println(fCount);
+		delay(100);
 		// NOP
 	}
 
@@ -562,13 +598,11 @@ int Gyro::ProcessGyroData(bool test)
     signed  short	temp;
     fpInt 	fpTemp;
 
-    // Read the FIFO count. If the processor throughput is what
-    // we believe, there should be at least one sample in each of the
-    // FIFOs for the gyroscope. The hardware will be sampling at 8x the
-    // output rate, so it should match the rest of the sensors.
+    // Sampling the data at the maximum rate, get a full
+    // buffer for signal averaging
     fCount = 0;
     failSafe = 0;
-    while(fCount < 1)
+    while(fCount < 31)
     {
         failSafe++;
         fCount = available();
@@ -650,7 +684,7 @@ int Gyro::ProcessGyroData(bool test)
 #if PITCH_ENABLE
     // Pitch
     // Filter the values
-	temp = AvgFilter(_gOpVector);
+	temp = AvgFilter(5, _gOpVector);
 	// Correct for offset
 	temp = temp - _gOpOffset;
 	// See if above noise threshold. If not, set pitch rate to 0
@@ -672,7 +706,7 @@ int Gyro::ProcessGyroData(bool test)
 #if YAW_ENABLE
     // Yaw
     // Filter the values
-    temp = AvgFilter(_gOyVector);
+    temp = AvgFilter(5, _gOyVector);
     // Correct for offset
     temp = temp - _gOyOffset;
     // See if above noise threshold. If not set yaw rate to 0
@@ -692,11 +726,19 @@ int Gyro::ProcessGyroData(bool test)
 
 #if ROLL_ENABLE
     // Roll
-    temp = _gOrVector[0];
-    // Convert to fixed point
-    fpTemp = (fpInt)temp;
-    fpTemp <<= FP_SHIFT;
-    _gdRoll = scaleGyroData(fpTemp);
+    // Filter the values
+    temp = AvgFilter(5, _gOrThreshold);
+    // Correct for offset
+    temp = temp - _gOrOffset;
+    // See if above noise threshold. If not set roll rate to 0
+    _gdRoll = 0;
+    if(abs(temp) > _gOrThreshold)
+    {
+    	// Convert to fixed point
+    	fpTemp = (fpInt)temp;
+    	fpTemp <<= FP_SHIFT;
+    	_gdRoll = scaleGyroData(fpTemp);
+    }
 
     // Update the numerical buffers
     _roll.tn1 = _roll.tn;

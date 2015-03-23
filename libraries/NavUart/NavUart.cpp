@@ -209,6 +209,12 @@ int NavUart::update(bool test)
 			nDP->Position_Y_MSB = highByte(_accelerometer->getPositionY());
 			nDP->Position_Y_LSB = lowByte(_accelerometer->getPositionY());
 		}
+		else
+		{
+			Serial.print("Error processing accel data, status = ");
+			Serial.println(imuStatus);
+			delay(100);
+		}
 
 		Status += imuStatus;
 	}

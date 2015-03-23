@@ -40,8 +40,8 @@
 
 struct GYRO_DATA_BLOCK
 {
-	unsigned char	hLSB;						// heading
-	unsigned char	hMSB;
+	unsigned char	rLSB;						// roll
+	unsigned char	rMSB;
 	unsigned char	pLSB;						// pitch
 	unsigned char	pMSB;
 	unsigned char	yLSB;						// yaw

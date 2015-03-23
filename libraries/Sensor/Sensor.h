@@ -82,7 +82,7 @@ class Sensor
     // single pole low pass filter
     signed short DigFilter(signed short* Data0, signed short* Data1);
     // 8-sample signal averaging filter
-    signed short AvgFilter(signed short* Data);
+    signed short AvgFilter(int shiftValue, signed short* Data);
     // Compute the integral over the given region using the Trapezoidal approx.
     fpInt trapIntegral(fpInt Data0, fpInt Data1);
   

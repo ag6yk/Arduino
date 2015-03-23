@@ -29,7 +29,7 @@
 
 // Enable to see serial monitor output
 #define BENCH_TESTING   1
-#define BENCH_DISPLAY_DEBUG	0
+#define BENCH_DISPLAY_DEBUG	1
 
 #if BENCH_DISPLAY_DEBUG
 #define dbg_print(x)        Serial.print(x)
@@ -356,7 +356,7 @@ void loop(void)
         dbg_print("HB = "); dbg_println(ArduinoHeartBeat);
     }
     
-    if(0)
+    if(upDate)
     {
         dbg_print("updateCount = "); dbg_println(updateCount);
     }
@@ -368,7 +368,7 @@ void loop(void)
         updateCount++;
        
         // Refresh the currect nav data buffer
-        imuStatus = navIf.update(false);
+        imuStatus = navIf.update(Display);
         
         // Switch nav data buffers
         navIf.switchBuffers();
