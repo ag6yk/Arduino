@@ -28,6 +28,19 @@
 ///////////////////////////////////////////////////////////////////////////////
 // DEFINES
 ///////////////////////////////////////////////////////////////////////////////
+#define BENCH_DISPLAY_DEBUG	0
+
+#if BENCH_DISPLAY_DEBUG
+#define dbg_print(x)        Serial.print(x)
+#define dbg_printm(x,y)     Serial.print(x,y)
+#define dbg_println(x)      Serial.println(x)
+#define dbg_printlnm(x,y)   Serial.println(x,y)
+#else
+#define dbg_print(x)
+#define dbg_printm(x,y)
+#define dbg_println(x)
+#define dbg_printlnm(x,y)
+#endif
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -43,6 +56,12 @@ Compass::Compass()
     _cVectorY = 0;
     _cVectorZ = 0;
     _cCompassHeading = 0;
+    _cData.xLSB = 0;
+    _cData.xMSB = 0;
+    _cData.yLSB = 0;
+    _cData.yMSB = 0;
+    _cData.zLSB = 0;
+    _cData.zMSB = 0;
 
 }
 
@@ -136,7 +155,7 @@ boolean Compass::readID()
 // Batch read the magnetic coordinate values
 // Much more efficient than separate reads
 // Called after MDRDY is asserted
-int Compass::ReadXYZ(MAG_DATA* pMagData)
+int Compass::ReadXYZ()
 {
     // Locals
     unsigned char RetryCount = 0;
@@ -168,25 +187,46 @@ int Compass::ReadXYZ(MAG_DATA* pMagData)
     }
 
     // Load the data
-    pMagData->xMSB = Wire.read();
-    pMagData->xLSB = Wire.read();
-    pMagData->yMSB = Wire.read();
-    pMagData->yLSB = Wire.read();
-    pMagData->zMSB = Wire.read();
-    pMagData->zLSB = Wire.read();
+    _cData.xMSB = Wire.read();
+    _cData.xLSB = Wire.read();
+    _cData.yMSB = Wire.read();
+    _cData.yLSB = Wire.read();
+    _cData.zMSB = Wire.read();
+    _cData.zLSB = Wire.read();
+
+    // Internal storage
+    _cVectorX = (_cData.xMSB << 8) + _cData.xLSB;
+    _cVectorY = (_cData.yMSB << 8) + _cData.yLSB;
+    _cVectorZ = (_cData.zMSB << 8) + _cData.zLSB;
 
     return(0);
 }
 
 // Process the compass data
-int Compass::ProcessCompassData()
+int Compass::ProcessCompassData(int test)
 {
-    // Place holder
-    return 0;
+	// Locals
+	int lStatus;
+
+	// There is no FIFO in the compass
+	lStatus = ReadXYZ();
+
+	if(test)
+	{
+		dbg_println("^^^");
+		dbg_print("Max X = "); dbg_printlnm(_cVectorX, HEX);
+		dbg_print("Max Y = "); dbg_printlnm(_cVectorY, HEX);
+		dbg_print("Max Z = "); dbg_printlnm(_cVectorZ, HEX);
+		dbg_println("VVVV");
+	}
+
+	// FUTURE: compute heading from mag vector
+//    return lStatus;
+	return 0;
 }
 
 // Compute the compass heading from the vector data
-int Compass::ComputeCompassHeading(MAG_DATA *m)
+int Compass::ComputeCompassHeading()
 {
     // Placeholder
     return 0;

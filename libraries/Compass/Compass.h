@@ -156,15 +156,16 @@ class Compass : public Sensor
         signed short    _cVectorY;
         signed short    _cVectorZ;
         signed short    _cCompassHeading;
+        struct MAG_DATA	_cData;
 
     public:
         Compass();                          // Constructor
         ~Compass();                         // Destructor
         int begin();                        // specialized initialization
         boolean readID();                   // Read device ID (verify bus)
-        int ReadXYZ(MAG_DATA* pMagData);    // block read the output data
-        int ProcessCompassData();           // process compass data
-        int ComputeCompassHeading(MAG_DATA *m); // Compute heading from compass
+        int ReadXYZ();    					// block read the output data
+        int ProcessCompassData(int);		// process compass data
+        int ComputeCompassHeading(); 		// Compute heading from compass
         signed short getVectorX();          // accessors
         signed short getVectorY();
         signed short getVectorZ();

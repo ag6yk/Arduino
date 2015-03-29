@@ -66,223 +66,6 @@ boolean Sensor::waitForI2CResponse(byte nBytes)
 	return false;
 }
 
-// These routines are not necessary for GCC-avr
-#if 0
-
-// Perform a right shift on a signed 32-bit value
-signed long Sensor::rsh_sgn32(signed long oldVal, int nbits)
-{
-    // Locals
-    unsigned long  signTest;
-    unsigned long  absVal;
-    signed long    newVal;
-
-    // Check the sign of the input value
-    signTest = (unsigned long)oldVal;
-    absVal = (unsigned long)oldVal;
-
-    // Correct for sign if required
-    if(signTest & 0x80000000)
-    {
-        absVal = absVal - 1;
-        absVal = ~absVal;
-    }
-
-    // Compute the shift
-    absVal >>= nbits;
-
-    // Restore sign if required
-    if(signTest & 0x80000000)
-    {
-        absVal = ~absVal;
-        absVal++;
-    }
-
-    // Cast back to signed value
-    newVal = (signed long)absVal;
-
-    return(newVal);
-
-}
-
-// Perform a left shift on a signed 16-bit value
-signed long Sensor::lsh_sgn32(signed long oldVal, int nbits)
-{
-    // Locals
-    unsigned long  signTest;
-    unsigned long  absVal;
-    signed long    newVal;
-
-    // Check the sign of the input value
-    signTest = (unsigned long)oldVal;
-    absVal = (unsigned long)oldVal;
-
-    // Correct for sign if required
-    if(signTest & 0x80000000)
-    {
-        absVal = absVal - 1;
-        absVal = ~absVal;
-    }
-
-    // Compute the shift
-    absVal <<= nbits;
-
-    // Restore sign if required
-    if(signTest & 0x80000000)
-    {
-        absVal = ~absVal;
-        absVal++;
-    }
-
-    // Cast back to signed value
-    newVal = (signed long)absVal;
-
-    return(newVal);
-}
-
-
-// Perform a right shift on a signed 16-bit value
-signed short Sensor::rsh_sgn16(signed short oldVal, int nbits)
-{
-	// Locals
-	unsigned short	signTest;
-	unsigned short	absVal;
-	signed short	newVal;
-
-	// Check the sign of the input value
-	signTest = (unsigned short)oldVal;
-	absVal = (unsigned short)oldVal;
-
-	// Correct for sign if required
-	if(signTest & 0x8000)
-	{
-		absVal = absVal - 1;
-		absVal = ~absVal;
-	}
-
-	// Compute the shift
-	absVal >>= nbits;
-
-	// Restore sign if required
-	if(signTest & 0x8000)
-	{
-		absVal = ~absVal;
-		absVal++;
-	}
-
-	// Cast back to signed value
-	newVal = (signed short)absVal;
-
-	return(newVal);
-
-}
-
-// Perform a left shift on a signed 16-bit value
-signed short Sensor::lsh_sgn16(signed short oldVal, int nbits)
-{
-	// Locals
-	unsigned short	signTest;
-	unsigned short	absVal;
-	signed short	newVal;
-
-	// Check the sign of the input value
-	signTest = (unsigned short)oldVal;
-	absVal = (unsigned short)oldVal;
-
-	// Correct for sign if required
-	if(signTest & 0x8000)
-	{
-		absVal = absVal - 1;
-		absVal = ~absVal;
-	}
-
-	// Compute the shift
-	absVal <<= nbits;
-
-	// Restore sign if required
-	if(signTest & 0x8000)
-	{
-		absVal = ~absVal;
-		absVal++;
-	}
-
-	// Cast back to signed value
-	newVal = (signed short)absVal;
-
-	return(newVal);
-}
-
-// Perform a right shift on a signed 8-bit value
-signed char Sensor::rsh_sgn8(signed char oldVal, int nbits)
-{
-	// Locals
-	unsigned char	signTest;
-	unsigned char	absVal;
-	signed char		newVal;
-
-	// Check the sign of the input value
-	signTest = (unsigned char)oldVal;
-	absVal = (unsigned char)oldVal;
-
-	// Correct for sign if required
-	if(signTest & 0x80)
-	{
-		absVal = absVal - 1;
-		absVal = ~absVal;
-	}
-
-	// Compute the shift
-	absVal >>= nbits;
-
-	// Restore sign if required
-	if(signTest & 0x80)
-	{
-		absVal = ~absVal;
-		absVal++;
-	}
-
-	// Cast back to signed value
-	newVal = (signed char)absVal;
-
-	return(newVal);
-}
-
-// Perform a left shift on a signed 8-bit value
-signed char Sensor::lsh_sgn8(signed char oldVal, int nbits)
-{
-	// Locals
-	unsigned char	signTest;
-	unsigned char	absVal;
-	signed char		newVal;
-
-	// Check the sign of the input value
-	signTest = (unsigned char)oldVal;
-	absVal = (unsigned char)oldVal;
-
-	// Correct for sign if required
-	if(signTest & 0x80)
-	{
-		absVal = absVal - 1;
-		absVal = ~absVal;
-	}
-
-	// Compute the shift
-	absVal <<= nbits;
-
-	// Restore sign if required
-	if(signTest & 0x80)
-	{
-		absVal = ~absVal;
-		absVal++;
-	}
-
-	// Cast back to signed value
-	newVal = (signed char)absVal;
-
-	return(newVal);
-}
-#endif
-
 
 // Execute a single pole low-pass filter on data stream
 signed short Sensor::DigFilter(signed short* Data0, signed short* Data1)
@@ -298,7 +81,6 @@ signed short Sensor::DigFilter(signed short* Data0, signed short* Data1)
 	// Which can be implemented using a right shift and subtraction
 	// Perform the shift after the subtraction to 1) retain sign and 2) precision
 	temp1 = *Data1 - *Data0;
-//	temp2 = rsh_sgn16(temp1, 1);
 	temp2 = temp1 >> 1;
 	return(temp2);
 }
@@ -343,7 +125,7 @@ signed short Sensor::AvgFilter(int shiftValue, signed short* Data)
 
 // Compute the integral for the input region
 // using the Trapezoidal approximation
-fpInt Sensor::trapIntegral(fpInt Data0, fpInt Data1)
+fpInt Sensor::trapIntegral(fpInt Data0, fpInt Data1, int nUpdateRate)
 {
 	// Locals
 	fpInt			newVal;
@@ -367,9 +149,17 @@ fpInt Sensor::trapIntegral(fpInt Data0, fpInt Data1)
 
 	// Now divide by 2 to get the average value
 	// and multiply by the time interval
-	// For a 100 Hz update rate this translates
-	// to x/200 which can be expressed as x/4*x/50
-	fpAugend = fpAugend >> 2;
+
+	// For 100 Hz this translates to fpAugend/200
+	// which can be expressed as (1/4) * fpAugend/50
+	// For 800 Hz this is directly fpAugend/50
+
+	// Update rate check
+	if(nUpdateRate == 100)
+	{
+		fpAugend = fpAugend >> 2;
+	}
+
 	newVal = fpAugend / 50;
 
 	return(newVal);

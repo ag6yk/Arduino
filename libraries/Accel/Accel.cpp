@@ -448,7 +448,7 @@ int Accel::ComputeVoft(NUM_BUFFER *n, fpInt* computedValue)
     fpInt	newVelocity;
 
     // Compute the new integral
-    newVelocity = trapIntegral(n->tn, n->tn1);
+    newVelocity = trapIntegral(n->tn, n->tn1, 100);
     // Add to the accumulator
     n->t0 = n->t0 + newVelocity;
     // Return the new value
@@ -465,7 +465,7 @@ int Accel::ComputeXoft(NUM_BUFFER *n, fpInt* computedValue)
     fpInt	newPosition;
 
     // Compute the new integral
-    newPosition = trapIntegral(n->tn, n->tn1);
+    newPosition = trapIntegral(n->tn, n->tn1, 100);
     // Add to the accumulator
     n->t0 = n->t0 + newPosition;
     // Return the new value

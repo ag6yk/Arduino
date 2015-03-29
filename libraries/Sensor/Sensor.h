@@ -84,7 +84,7 @@ class Sensor
     // 8-sample signal averaging filter
     signed short AvgFilter(int shiftValue, signed short* Data);
     // Compute the integral over the given region using the Trapezoidal approx.
-    fpInt trapIntegral(fpInt Data0, fpInt Data1);
+    fpInt trapIntegral(fpInt Data0, fpInt Data1, int nUpdateRate);
   
 };
 #endif

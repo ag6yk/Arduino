@@ -76,6 +76,10 @@ struct NAV_DATA
     byte    Heading_LSB;        // Least significant byte of heading
     byte    Pitch_MSB;          // Most significant byte of pitch
     byte    Pitch_LSB;          // Least significant byte of pitch
+    byte	Mag_X_LSB;			// Least significant byte of mag vector X
+    byte	Mag_X_MSB;			// Most significant byte of mag vaector X
+    byte	Mag_Y_LSB;			// Least significant byte of mag vector Y
+    byte	Mag_Y_MSB;			// Most significatn byte of mag vector Y
     byte    Range_0_MSB;        // Most significant byte of Range 0 sensor reading
     byte    Range_0_LSB;        // Least significant byte of Range 0 sensor reading
     byte    Range_1_MSB;        // Most significant byte of Range 0 sensor reading
@@ -95,8 +99,10 @@ class NavUart : public SoftwareSerial
         // Define a single test buffer with canned data
         const struct NAV_DATA   testBuffer =
         {
-            0x27, 101, 102, 103, 104, 105, 106, 107, 108, 109,
-            110, 111, 112, 113, 114, 115, 116, 117, 118,
+            0x27,
+            101, 102, 103, 104, 105, 106, 107, 108,
+            109, 110, 111, 112, 113, 114, 115, 116,
+            117, 118, 119, 120, 121, 122,
             0xBC
         };
 

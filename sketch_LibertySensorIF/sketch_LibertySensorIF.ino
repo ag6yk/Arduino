@@ -52,7 +52,7 @@
 // Conditionally compile support for each sensor in the IMU
 #define ACCEL_ENABLE    1
 #define GYRO_ENABLE     1
-#define COMPASS_ENABLE  0
+#define COMPASS_ENABLE  1
 #define BARO_ENABLE     0
 #define RANGES_ENABLE   0
 

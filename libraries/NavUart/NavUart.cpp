@@ -240,6 +240,18 @@ int NavUart::update(bool test)
 		Status += imuStatus;
 	}
 
+	if(_compass)
+	{
+		imuStatus = _compass->ProcessCompassData(test);
+		if(imuStatus == 0)
+		{
+			nDP->Mag_X_MSB = highByte(_compass->getVectorX());
+			nDP->Mag_X_LSB = lowByte(_compass->getVectorX());
+			nDP->Mag_Y_MSB = highByte(_compass->getVectorY());
+			nDP->Mag_Y_LSB = lowByte(_compass->getVectorY());
+		}
+	}
+
 	if(_rangeSensor[0])
 	{
 		imuStatus = _rangeSensor[0]->ReadRange(test);
@@ -300,36 +312,52 @@ int NavUart::update(bool test)
 		Status += imuStatus;
 	}
 
-
 	// Re-Initialize the local pointer
 	nDPb = (byte*)nDP;
 	nDP->NavSync = navBarkerCode;
 	nDP->NavEoF = NAV_ENDOF_FRAME;
 
-	Status = 0;
-	for(i = 0; i < sizeof(NAV_DATA); i++)
+	// Only update the status if nav data good
+	if(Status == 0)
 	{
+		for(i = 0; i < sizeof(NAV_DATA); i++)
+		{
+			if(test)
+			{
+				Serial.print(*nDPb, HEX);
+			}
+			this->write(*nDPb++);
+		}
 		if(test)
 		{
-			Serial.print(*nDPb, HEX);
+			Serial.println();
 		}
-		Status++;
-		this->write(*nDPb++);
-	}
-	if(test)
-	{
-		Serial.println();
-	}
-	Status++;
 
-	// Compute the alternating code for the next frame
-	if(navBarkerCode == NAV_SYNC_NOINVERT)
-	{
-		navBarkerCode = NAV_SYNC_INVERT;
+		// Compute the alternating code for the next frame
+		if(navBarkerCode == NAV_SYNC_NOINVERT)
+		{
+			navBarkerCode = NAV_SYNC_INVERT;
+		}
+		else
+		{
+			navBarkerCode = NAV_SYNC_NOINVERT;
+		}
 	}
 	else
 	{
-		navBarkerCode = NAV_SYNC_NOINVERT;
+		// Diagnostics only
+		for(i = 0; i < sizeof(NAV_DATA); i++)
+		{
+			if(test)
+			{
+				Serial.print(*nDPb, HEX);
+			}
+		}
+		if(test)
+		{
+			Serial.println();
+		}
+
 	}
 
 	return(Status);

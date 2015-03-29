@@ -30,7 +30,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#define BENCH_DISPLAY_DEBUG	1
+#define BENCH_DISPLAY_DEBUG	0
 
 #if BENCH_DISPLAY_DEBUG
 #define dbg_print(x)        Serial.print(x)
@@ -139,16 +139,14 @@ int Gyro::begin(void)
     Wire.beginTransmission(_i2cAddress);
 
     // Control register 1
-    // Data rate - 100 Hz
-    // Cut-off 12.5
+    // Update rate: 800 Hz
+    // HP cutoff frequency: 50 Hz
     // Normal mode (no sleep)
     // Enable X Y and Z axis
     // 0b00001111
     Wire.write(byte(G_CTRL_REG1 | 0x80));     // point to start of multi-byte
 //    Wire.write(byte(0x0F));
 //    Wire.write(byte(0x7F));
-    // DEBUG DEBUG DEBUG
-    // Max rate and cutoff freqs
     Wire.write(byte(0xEF));
   
     // Control register 2
@@ -474,7 +472,7 @@ int Gyro::ComputeRoll(NUM_BUFFER *n, fpInt* computedValue)
 	fpInt newRoll;
 
 	// Compute the new integral
-	newRoll = trapIntegral(n->tn, n->tn1);
+	newRoll = trapIntegral(n->tn, n->tn1, 800);
 	// Add to the accumulator
 	n->t0 = n->t0 + newRoll;
 	// Return the new value
@@ -490,7 +488,7 @@ int Gyro::ComputePitch(NUM_BUFFER *n, fpInt* computedValue)
     fpInt newPitch;
 
     // Compute the new integral
-    newPitch = trapIntegral(n->tn, n->tn1);
+    newPitch = trapIntegral(n->tn, n->tn1, 800);
     // Add to the accumulator
     n->t0 = n->t0 + newPitch;
     // Scale to degrees
@@ -507,7 +505,7 @@ int Gyro::ComputeHeading(NUM_BUFFER *n, fpInt* computedValue)
     fpInt newHeading;
 
     // Compute the new integral
-    newHeading = trapIntegral(n->tn, n->tn1);
+    newHeading = trapIntegral(n->tn, n->tn1, 800);
     // Add to the accumulator
     n->t0 = n->t0 + newHeading;
     // Return the new value
