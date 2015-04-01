@@ -29,7 +29,7 @@
 
 // Enable to see serial monitor output
 #define BENCH_TESTING   1
-#define BENCH_DISPLAY_DEBUG	1
+#define BENCH_DISPLAY_DEBUG	0
 
 #if BENCH_DISPLAY_DEBUG
 #define dbg_print(x)        Serial.print(x)
@@ -51,7 +51,7 @@
 
 // Conditionally compile support for each sensor in the IMU
 #define ACCEL_ENABLE    1
-#define GYRO_ENABLE     1
+#define GYRO_ENABLE     0
 #define COMPASS_ENABLE  1
 #define BARO_ENABLE     0
 #define RANGES_ENABLE   0
@@ -88,11 +88,25 @@
 // Sensor superclass
 #include "Sensor.h"
 // Specific sensor classes
+#if GYRO_ENABLE
 #include "Gyro.h"
+#endif
+
+#if ACCEL_ENABLE
 #include "Accel.h"
+#endif
+
+#if COMPASS_ENABLE
 #include "Compass.h"
+#endif
+
+#if BARO_ENABLE
 #include "Baro.h"
+#endif
+
+#if RANGES_ENABLE
 #include "Ultrasonic.h"
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEFINITIONS

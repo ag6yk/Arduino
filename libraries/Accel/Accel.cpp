@@ -29,6 +29,21 @@
 // DEFINES
 ///////////////////////////////////////////////////////////////////////////////
 
+#define BENCH_DISPLAY_DEBUG	0
+
+#if BENCH_DISPLAY_DEBUG
+#define dbg_print(x)        Serial.print(x)
+#define dbg_printm(x,y)     Serial.print(x,y)
+#define dbg_println(x)      Serial.println(x)
+#define dbg_printlnm(x,y)   Serial.println(x,y)
+#else
+#define dbg_print(x)
+#define dbg_printm(x,y)
+#define dbg_println(x)
+#define dbg_printlnm(x,y)
+#endif
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // CLASS AND METHOD DEFINITIONS
 ///////////////////////////////////////////////////////////////////////////////
@@ -568,12 +583,12 @@ int Accel::ProcessAccelData(int test)
 
 	if(0)
 	{
-		Serial.print("AFifo count = "); Serial.println(fCount);
+		dbg_print("AFifo count = "); dbg_println(fCount);
     	for(i=0; i < fCount; i++)
     	{
-      		Serial.print("Xddot   = "); Serial.println(_aXvector[i], DEC);
-    		Serial.print(":Yddot   = "); Serial.println(_aYvector[i], DEC);
-    		Serial.print(":Zddot   = "); Serial.println(_aZvector[i], DEC);
+    		dbg_print("Xddot   = "); dbg_printlnm(_aXvector[i], DEC);
+    		dbg_print(":Yddot   = "); dbg_printlnm(_aYvector[i], DEC);
+    		dbg_print(":Zddot   = "); dbg_printlnm(_aZvector[i], DEC);
     	}
 	}
 
@@ -659,9 +674,9 @@ int Accel::ProcessAccelData(int test)
 
     if(0)
     {
-    	Serial.print("Ax= "); Serial.println(_accelerationX);
-    	Serial.print("Vx= "); Serial.println(_velocityX);
-    	Serial.print("Px= "); Serial.println(_positionX);
+    	dbg_print("Ax= "); dbg_println(_accelerationX);
+    	dbg_print("Vx= "); dbg_println(_velocityX);
+    	dbg_print("Px= "); dbg_println(_positionX);
 //        delay(100);
     }
 

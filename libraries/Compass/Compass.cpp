@@ -89,8 +89,8 @@ int Compass::begin(void)
   Wire.write(byte(0x70));
   
   // Configuration register B
-  // Use defaults (0x20)
-  Wire.write(byte(0x20));                   // write so that address increments
+  // Use gain of bit = 390 Gauss
+  Wire.write(byte(0xA0));                   // write so that address increments
   
   // Mode register
   // Normal speed I2C
@@ -160,6 +160,21 @@ int Compass::ReadXYZ()
     // Locals
     unsigned char RetryCount = 0;
     boolean Responded = false;
+    unsigned char i2cStatus = 0;
+    unsigned char temp;
+
+    // Wake up the compass
+    Wire.beginTransmission(_i2cAddress);
+    Wire.write(byte(C_MODE));
+    Wire.write(byte(C_MODE_1SHOT));
+    i2cStatus = Wire.endTransmission();
+
+    // Check if the compass is active
+    Wire.beginTransmission(_i2cAddress);
+    Wire.write(byte(C_STATUS));
+    i2cStatus = Wire.endTransmission();
+    Wire.requestFrom(_i2cAddress, byte(0x01));
+    temp = Wire.read();
 
     // Point to the device
     Wire.beginTransmission(_i2cAddress);
@@ -189,10 +204,10 @@ int Compass::ReadXYZ()
     // Load the data
     _cData.xMSB = Wire.read();
     _cData.xLSB = Wire.read();
-    _cData.yMSB = Wire.read();
-    _cData.yLSB = Wire.read();
     _cData.zMSB = Wire.read();
     _cData.zLSB = Wire.read();
+    _cData.yMSB = Wire.read();
+    _cData.yLSB = Wire.read();
 
     // Internal storage
     _cVectorX = (_cData.xMSB << 8) + _cData.xLSB;

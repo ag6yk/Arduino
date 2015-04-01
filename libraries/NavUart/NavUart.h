@@ -76,10 +76,10 @@ struct NAV_DATA
     byte    Heading_LSB;        // Least significant byte of heading
     byte    Pitch_MSB;          // Most significant byte of pitch
     byte    Pitch_LSB;          // Least significant byte of pitch
-    byte	Mag_X_LSB;			// Least significant byte of mag vector X
-    byte	Mag_X_MSB;			// Most significant byte of mag vaector X
-    byte	Mag_Y_LSB;			// Least significant byte of mag vector Y
-    byte	Mag_Y_MSB;			// Most significatn byte of mag vector Y
+    byte	Mag_X_MSB;			// Least significant byte of mag vector X
+    byte	Mag_X_LSB;			// Most significant byte of mag vaector X
+    byte	Mag_Y_MSB;			// Least significant byte of mag vector Y
+    byte	Mag_Y_LSB;			// Most significatn byte of mag vector Y
     byte    Range_0_MSB;        // Most significant byte of Range 0 sensor reading
     byte    Range_0_LSB;        // Least significant byte of Range 0 sensor reading
     byte    Range_1_MSB;        // Most significant byte of Range 0 sensor reading

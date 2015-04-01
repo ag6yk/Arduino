@@ -28,6 +28,23 @@
 ////////////////////////////////////////////////////////////////////////////////
 // DEFINES
 ////////////////////////////////////////////////////////////////////////////////
+#define BENCH_DISPLAY_DEBUG	0
+
+#if BENCH_DISPLAY_DEBUG
+#define dbg_print(x)        Serial.print(x)
+#define dbg_printm(x,y)     Serial.print(x,y)
+#define dbg_println(x)      Serial.println(x)
+#define dbg_printlnm(x,y)   Serial.println(x,y)
+#else
+#define dbg_print(x)
+#define dbg_printm(x,y)
+#define dbg_println(x)
+#define dbg_printlnm(x,y)
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// METHODS
+///////////////////////////////////////////////////////////////////////////////
 
 // Constructor
 Ultrasonic::Ultrasonic(int Trigger, int Echo)
@@ -75,7 +92,7 @@ int Ultrasonic::ReadRange(bool test)
 
 	if(false)
 	{
-		Serial.print("Tprop = "); Serial.println(Tprop);
+		dbg_print("Tprop = "); dbg_println(Tprop);
 	}
 
 	// Convert to inches

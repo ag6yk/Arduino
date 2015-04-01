@@ -65,9 +65,9 @@
                                            
 #define  C_MODE        0x02                // Mode register
 #define  C_MODE_SEL    0x03                // Measurement modes
-                                           // 00 - continuous
-                                           // 01 - single 
-                                           // 1x - idle
+#define  C_MODE_CONT   0x00                // 00 - continuous
+#define  C_MODE_1SHOT  0x01                // 01 - single
+#define  C_MODE_IDLE   0x02                // 1x - idle
 #define  C_MODE_HS     (0x01 << 7)         // 1-high speed I2C (3.4M)
 
 // Output Data

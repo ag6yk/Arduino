@@ -101,6 +101,7 @@ int NavUart::getNavCommand()
 	if(rxCount > 0)
 	{
 		navCommand = read();
+		Serial.print("Nav Command = "); Serial.println(navCommand);
 	}
 
 	return(navCommand);
@@ -320,6 +321,10 @@ int NavUart::update(bool test)
 	// Only update the status if nav data good
 	if(Status == 0)
 	{
+		if(test)
+		{
+			Serial.println("***");
+		}
 		for(i = 0; i < sizeof(NAV_DATA); i++)
 		{
 			if(test)
@@ -346,6 +351,10 @@ int NavUart::update(bool test)
 	else
 	{
 		// Diagnostics only
+		if(test)
+		{
+			Serial.println("!!!!");
+		}
 		for(i = 0; i < sizeof(NAV_DATA); i++)
 		{
 			if(test)
